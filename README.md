@@ -9,20 +9,33 @@ done` is a quick way to check out and test a coworker's branch and clean up
 afterward. If you don't work with PRs, there's probably not much here for you
 — but if you work with a team, it's worth a look.
 
-You'll need the [GitHub CLI](https://cli.github.com) (`gh`) for `git pr` —
-install that before installing this.
-
 ## Install
 
+**Homebrew** (recommended):
+
 ```bash
-git clone <this-repo> ~/gitplus
+brew tap raocow/tap
+brew install gitplus
+```
+
+This also installs the [GitHub CLI](https://cli.github.com) (`gh`)
+automatically — it's a hard dependency of the formula, needed for `git pr`
+and `git haspr`.
+
+**From source** (for local development, or if you're not on Homebrew):
+
+```bash
+git clone https://github.com/raocow/gitplus ~/gitplus
 cd ~/gitplus
 ./install.sh                 # symlinks bin/git-* into ~/.local/bin
 # (pass a dir to link elsewhere, e.g. ./install.sh ~/bin)
 ```
 
 `./install.sh` symlinks, so a later `git pull` here updates the commands in
-place. Make sure the target dir is on your `PATH`.
+place. Make sure the target dir is on your `PATH`. You'll need the
+[GitHub CLI](https://cli.github.com) (`gh`) yourself this way — `install.sh`
+installs it via Homebrew if missing (and prints manual instructions
+otherwise); not fatal, so the other commands install fine without it.
 
 ## zsh completion
 
