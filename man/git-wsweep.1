@@ -1,6 +1,6 @@
 .TH GIT-WSWEEP 1 "2026-07-09" "gitplus" "gitplus Manual"
 .SH NAME
-git-wsweep \- remove worktrees whose HEAD is already merged into the base branch
+git-wsweep \- remove worktrees (and their branches) merged into the base
 .SH SYNOPSIS
 .B git wsweep
 [\fB\-f\fR|\fB\-\-force\fR]
@@ -10,34 +10,38 @@ git-wsweep \- remove worktrees whose HEAD is already merged into the base branch
 .SH DESCRIPTION
 The worktree analogue of
 .BR git-sweep (1).
-Where
-.B git sweep
-deletes merged
-.IR branches ,
-.B git wsweep
-removes merged
+Removes merged
 .I worktrees
-\(em the linked working directories \(em and
-.B keeps
-the branches. Drop throwaway per-task checkouts and still
-.BR "git switch" / "git pr"
-the branch later from your main worktree. Removing a worktree never deletes its
-branch; run
+\(em the linked working directories \(em
+.B and
+deletes the underlying branch, same as running
 .BR git-sweep (1)
-afterwards if you also want the merged branches gone.
+right afterward \(em you are almost always done with both at once. A
+detached-HEAD worktree has no branch, so only the worktree goes.
 .PP
 Like git-sweep, it fetches first and judges "merged" against the base's remote
 tip
 .RI ( origin/<base> ),
 so it works without pulling the base locally and from any worktree.
 .PP
-Safe by default: a worktree is removed only when its HEAD is already an ancestor
-of the base's remote tip (verified with
+Safe by default: a worktree (and its branch) is removed only when its HEAD is
+already an ancestor of the base's remote tip (verified with
 .BR "git merge-base \-\-is-ancestor" ),
 so no unmerged work is lost. Reachability is judged by the worktree's HEAD
-commit, so both branch-backed and detached worktrees are handled. The main
+commit, so both branch-backed and detached worktrees are handled. The branch
+delete uses
+.B \-D
+rather than
+.B \-d
+on purpose, same reasoning as
+.BR git-sweep (1):
+.B \-d
+rechecks mergedness against your
+.I current
+branch, which wrongly refuses a branch merged upstream when your local base is
+stale; the merge-base check above is done instead, and trusted. The main
 worktree (always listed first) and the worktree you are currently in are never
-touched.
+touched or deleted.
 .SH OPTIONS
 .TP
 .BR \-f ", " \-\-force
@@ -45,7 +49,11 @@ Remove every worktree except the main one and the current one, regardless of
 merge status, with
 .BR "git worktree remove \-\-force" .
 This also drops worktrees that have uncommitted changes, discarding those
-changes \(em the branches themselves survive.
+changes.
+.B Branches are not deleted in force mode
+\(em that would compound two separately destructive actions into one flag; run
+.B git sweep \-f
+afterward if you want those gone too.
 .B "It discards uncommitted work"
 \(em preview with
 .B \-n
@@ -62,7 +70,7 @@ Show usage and exit.
 .SH EXAMPLES
 .TP
 .B git wsweep
-Remove worktrees whose HEAD is merged into the base (safe); keep the branches.
+Remove worktrees (and their branches) whose HEAD is merged into the base (safe).
 .TP
 .B git wsweep \-f \-n
 Preview a force sweep of every worktree except main and current.

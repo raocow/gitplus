@@ -79,7 +79,7 @@ on `fpath` and you can drop it.)
 | Command | What it does |
 |---|---|
 | [`git sweep`](#git-sweep) | Delete local branches already merged into the base |
-| [`git wsweep`](#git-wsweep) | Remove worktrees already merged into the base (keeps the branch) |
+| [`git wsweep`](#git-wsweep) | Remove worktrees (and their branches) already merged into the base |
 | [`git sync`](#git-sync) | Rebase branch(es) onto the base and push |
 | [`git pr`](#git-pr) | List, check out, or merge PRs |
 | [`git new`](#git-new) | Create + switch to a branch, with short-name Tab-completion |
@@ -114,16 +114,17 @@ git wsweep [-f|--force] [-n|--dry-run] [-b|--base <name>]
 The worktree analogue of `git sweep`:
 
 - Removes worktrees whose **HEAD is already merged** into the base's remote
-  tip, and **keeps the branch** — so you can drop a throwaway per-task
-  checkout and still switch to the branch later from your main worktree.
+  tip, **and deletes the underlying branch** — same as running `git sweep`
+  right after, since you're almost always done with both at once. A
+  detached-HEAD worktree has no branch, so only the worktree goes.
 - Safe by default (verified with `merge-base`; judged by the worktree's HEAD,
   so branch-backed and detached worktrees both work). The main worktree and
-  the one you're in are never touched.
+  the one you're in are never touched (or deleted).
 - `-f`/`--force` removes **every** other worktree regardless of merge status
-  — including ones with uncommitted changes (those changes are discarded;
-  the branch survives — preview with `-n` first).
-- Removing a worktree never deletes its branch — run `git sweep` after if you
-  want the merged branches gone too.
+  — including ones with uncommitted changes (those changes are discarded).
+  Branches are **not** deleted in force mode — that's two separately
+  destructive actions to compound into one flag; run `git sweep -f`
+  afterward if you want those gone too. Preview with `-n` first.
 
 ### `git sync`
 
