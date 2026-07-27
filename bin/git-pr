@@ -428,7 +428,18 @@ if [ "$subcmd" = "merge" ]; then
   # leaves it pushed), 1 if the rebase itself needs manual resolution.
   rebase_and_push() {
     local head="$1" base="$2"
-    if git worktree list --porcelain | grep -qF "branch refs/heads/$head"$'\n'; then
+    # -x for a whole-LINE match, not just -F with a trailing literal newline
+    # appended to the pattern: real (BSD/FreeBSD) grep on macOS treats an
+    # embedded \n inside a -F pattern as a pattern SEPARATOR, splitting it
+    # into two patterns — the real string, and an empty one after the \n.
+    # An empty pattern matches every line, so `grep -qF "...$branch"$'\n'`
+    # silently matched ANY worktree output at all, making this guard always
+    # fire (skip every PR needing a rebase) regardless of real state. Found
+    # because it happened to work fine when tested through Claude Code's
+    # interactive shell, which transparently substitutes a different grep
+    # implementation (ugrep) that doesn't have this quirk — but the real
+    # /usr/bin/grep the script actually runs with does.
+    if git worktree list --porcelain | grep -qFx "branch refs/heads/$head"; then
       return 2   # branch is checked out elsewhere — don't touch it
     fi
     local wt; wt="$tmp/wt-$head"
@@ -492,7 +503,16 @@ if [ "$subcmd" = "merge" ]; then
           merged_directly=1
         fi
         if [ "$merged_directly" = 0 ]; then
-          rebase_and_push "$head" "$base"; rc=$?
+          # `cmd; rc=$?` looks like it captures the exit code, but under
+          # `set -e` a plain (non-conditional) command returning non-zero
+          # aborts the script right there — before `rc=$?` ever runs. The `||`
+          # form is required: putting the call on the left of `||` exempts it
+          # from errexit, and `rc=$?` on the right still captures its real
+          # exit code. Without this, ANY non-zero return from rebase_and_push
+          # (conflict, branch checked out elsewhere, fetch/push failure) would
+          # silently kill the entire `git pr merge` run with no message at
+          # all, instead of warning and skipping just this one PR.
+          rc=0; rebase_and_push "$head" "$base" || rc=$?
           case "$rc" in
             0)
               if err="$(merge_with_retry "$num")"; then
