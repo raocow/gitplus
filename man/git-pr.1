@@ -4,6 +4,7 @@ git-pr \- list your open pull requests, check one out, or merge one or more
 .SH SYNOPSIS
 .B git pr
 [\fB\-nt\fR|\fB\-\-no\-title\fR]
+[\fB\-c\fR|\fB\-\-copy\fR]
 .br
 .B git pr
 .I NUMBER
@@ -225,6 +226,10 @@ afterward for that.
 .BR \-nt ", " \-\-no\-title
 When listing, print bare URLs (one per line) instead of
 .IR "<url> -- <title>" .
+.TP
+.BR \-c ", " \-\-copy
+When listing, also copy the listing to the clipboard. Not valid with
+.BR "git pr merge" .
 .TP
 .BR \-a ", " \-\-all
 With

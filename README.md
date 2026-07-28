@@ -159,6 +159,7 @@ git sync [<ids...>] [-x|--exclude <ids...>] [-a|--all] [-n|--dry-run] [-b|--base
 ```
 git pr                            list your open PRs ("<url> -- <title>")
 git pr -nt                        list them as bare URLs (--no-title)
+git pr -c                         also copy the listing to the clipboard (--copy)
 git pr <n|branch|url|.|@>         check out that PR, updated to its latest
 git pr list <id...>               show title/link instead of checking out
 git pr merge <id...>              merge the given PR(s)
@@ -170,7 +171,9 @@ git pr merge ... -n|--dry-run     preview the merge plan, change nothing
 Requires the GitHub CLI (`gh`).
 
 - **List** (bare `git pr`) shows your open PRs; `-nt`/`--no-title` prints
-  bare URLs, one per line, for piping.
+  bare URLs, one per line, for piping. `-c`/`--copy` also copies the listing
+  to the clipboard — works with any listing form (`list`, checkout-multi,
+  `-nt`), not `merge`.
 - **Check out** a PR with its number, head branch, URL, or `.`/`@` (the
   branch you're on) — this runs `gh pr checkout`, which creates the branch or
   fast-forwards an existing one, so you're never on a stale copy. Falls back
