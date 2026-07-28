@@ -560,10 +560,14 @@ if [ "$subcmd" = "merge" ]; then
     echo
     echo "Run without --dry-run to actually merge."
   else
-    echo "Merged (${#merged[@]}):"
-    for m in "${merged[@]}"; do echo "  $m"; done
-    if [ "${#skipped[@]}" -gt 0 ]; then
-      echo "Unmergeable / skipped (${#skipped[@]}):"
+    # Each merge/skip was already narrated as it happened (the ✓/! lines
+    # above) — re-listing every success here by name was pure repetition.
+    # Skips still get listed: unlike a success, "why" is worth having in one
+    # place to act on, not just scroll back to find.
+    if [ "${#skipped[@]}" -eq 0 ]; then
+      echo "Merged all ${#merged[@]}."
+    else
+      echo "Merged ${#merged[@]}; unmergeable/skipped (${#skipped[@]}):"
       for s in "${skipped[@]}"; do echo "  $s"; done
     fi
   fi
