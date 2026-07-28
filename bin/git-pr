@@ -552,8 +552,8 @@ if [ "$subcmd" = "merge" ]; then
     esac
   done
 
-  echo
   if [ "$dry" = 1 ]; then
+    echo
     echo "Dry run — nothing was changed. Order (least-entangled first):"
     for p in "${plan[@]}"; do echo "  $p"; done
     [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in "${skipped[@]}"; do echo "  $s"; done; }
@@ -563,10 +563,14 @@ if [ "$subcmd" = "merge" ]; then
     # Each merge/skip was already narrated as it happened (the ✓/! lines
     # above) — re-listing every success here by name was pure repetition.
     # Skips still get listed: unlike a success, "why" is worth having in one
-    # place to act on, not just scroll back to find.
+    # place to act on, not just scroll back to find. When everything merged
+    # cleanly, the one-line tally is a direct continuation of that narration,
+    # not a separate section — no blank line needed. The skip list IS a
+    # separate section worth setting apart, so it keeps its lead-in blank line.
     if [ "${#skipped[@]}" -eq 0 ]; then
       echo "Merged all ${#merged[@]}."
     else
+      echo
       echo "Merged ${#merged[@]}; unmergeable/skipped (${#skipped[@]}):"
       for s in "${skipped[@]}"; do echo "  $s"; done
     fi
