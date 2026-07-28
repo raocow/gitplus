@@ -4,6 +4,7 @@
 #
 #   git pr                list your open PRs in this repo, as "<url> -- <title>"
 #   git pr --no-title     just the URLs, one per line (easy to pipe)   [-nt]
+#   git pr --copy         also copy the listing to the clipboard         [-c]
 #   git pr <n|branch>     check out that PR's branch, updated to the PR's latest
 #   git pr list <ids...>  show title/link for specific PR(s) instead of
 #                         checking out — any count, any author, any state
@@ -123,6 +124,8 @@ git pr — list your open PRs, check one out, or merge one or more.
 
   git pr                      list your open PRs in this repo, as "<url> -- <title>"
   git pr -nt                  list them as bare URLs (--no-title)
+  git pr -c                   also copy the listing to the clipboard (--copy;
+                              works with list/checkout-multi/-nt, not merge)
   git pr <n|branch>           check out that PR (by number, branch name, or
                               URL), updated to the PR's latest
   git pr list <ids...>        show title/link for specific PR(s) instead of
@@ -169,6 +172,7 @@ EOF
 
 id=""
 notitle=0
+copy=0
 subcmd=""
 all=0
 dry=0
@@ -186,6 +190,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     -nt|--no-title) notitle=1; in_exclude=0 ;;
+    -c|--copy) copy=1; in_exclude=0 ;;
     -a|--all) all=1; in_exclude=0 ;;
     -n|--dry-run) dry=1; in_exclude=0 ;;
     -x|--exclude) in_exclude=1 ;;
@@ -619,13 +624,18 @@ EOF
     rows="$filtered"
   fi
 
-  printf '%s\n' "$rows" | sed '/^$/d' | sort -t "$(printf '\t')" -k1,1n -u \
+  listing="$(printf '%s\n' "$rows" | sed '/^$/d' | sort -t "$(printf '\t')" -k1,1n -u \
     | while IFS=$'\t' read -r num url title state; do
         line="$url"
         [ "$notitle" = 1 ] || line="$url -- $title"
         [ -n "${state:-}" ] && [ "$state" != "OPEN" ] && line="$line [$state]"
         echo "$line"
-      done
+      done)"
+  [ -n "$listing" ] && printf '%s\n' "$listing"
+  if [ "$copy" = 1 ] && [ -n "$listing" ]; then
+    printf '%s\n' "$listing" | pbcopy
+    printf '%s✓%s %s\n' "$_ok" "$_off" "copied to clipboard" >&2
+  fi
   exit 0
 fi
 
