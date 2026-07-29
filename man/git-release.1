@@ -1,0 +1,93 @@
+.TH GIT-RELEASE 1 "2026-07-29" "gitplus" "gitplus Manual"
+.SH NAME
+git-release \- tag the current commit and publish a GitHub release for it
+.SH SYNOPSIS
+.B git release
+.I VERSION
+[\fB\-\-notes\fR \fITEXT\fR]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
+.br
+.B git release
+\fB\-\-major\fR|\fB\-\-minor\fR|\fB\-\-patch\fR
+[\fB\-\-notes\fR \fITEXT\fR]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
+.br
+.B git release
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+Automates the flow a GitHub release actually needs: an annotated tag, a push
+of that tag, and
+.BR "gh release create" .
+.B git tag
++
+.B "git push origin <tag>"
+alone does
+.B not
+create a visible GitHub Release \(em that is a separate API call, which this
+always makes, so a release never ends up silently half-finished (a real tag
+with no Release to show for it).
+.PP
+The version can be given explicitly, or derived by bumping the latest
+.I vX.Y.Z
+tag with
+.BR \-\-major / \-\-minor / \-\-patch .
+Release notes can be given explicitly with
+.BR \-\-notes ,
+or left to
+.BR "gh release create --generate-notes" ,
+which summarizes PRs/commits since the last release. Both the version and
+the notes are independently either automatic or manual.
+.PP
+Refuses to run with uncommitted changes (including untracked files \(em
+checked with
+.BR "git status --porcelain" ,
+not a plain
+.BR "git diff --quiet" ,
+which misses them), or if the current branch has diverged from its origin
+tracking branch: a release should tag something that is actually pushed, not
+local-only work.
+.SH OPTIONS
+.TP
+.I VERSION
+An explicit version, e.g.
+.IR v1.3.0 .
+Must look like
+.IR vX.Y.Z .
+.TP
+.BR \-\-major ", " \-\-minor ", " \-\-patch
+Bump the latest
+.I vX.Y.Z
+tag instead of naming a version explicitly. Requires at least one existing
+tag matching that pattern.
+.TP
+.BR \-\-notes " " \fITEXT\fR
+Use
+.I TEXT
+as the release notes instead of auto-generating them.
+.TP
+.BR \-n ", " \-\-dry\-run
+Print what would happen and change nothing.
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH REQUIREMENTS
+Requires the GitHub CLI
+.RB ( gh ),
+authenticated for the repository
+.RB ( "gh auth login" ).
+.SH EXAMPLES
+.TP
+.B git release v1.3.0
+Tag and release an explicit version.
+.TP
+.B git release --patch
+Bump the latest tag's patch version and release it.
+.TP
+.B git release --minor --notes "New gwt command"
+Bump the minor version with hand-written release notes.
+.TP
+.B git release --major -n
+Preview a major-version bump without changing anything.
+.SH SEE ALSO
+.BR git-tag (1),
+.BR gh-release (1)

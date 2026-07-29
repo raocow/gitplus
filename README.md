@@ -86,6 +86,7 @@ on `fpath` and you can drop it.)
 | [`git haspr`](#git-haspr) | Check whether a branch already has a PR |
 | [`git done`](#git-done) | Switch back to base, fast-forward it, delete the branch you left |
 | [`git wt`](#git-wt--gwt) / `gwt` | Jump straight to whichever worktree already has a branch checked out |
+| [`git release`](#git-release) | Tag the current commit and publish a GitHub release for it |
 
 Each takes `-h` for a short usage summary, or `--help` to open its full man
 page (installed to `share/man/man1` by `install.sh` and by Homebrew).
@@ -269,6 +270,29 @@ The bookend to `git pr`:
 - On a detached HEAD, it just switches back to base. Already on the base, it
   just pulls (fetch + fast-forward — nothing to delete).
 
+### `git release`
+
+```
+git release <version> [--notes <text>] [-n|--dry-run]
+git release --major|--minor|--patch [--notes <text>] [-n|--dry-run]
+```
+
+Automates the flow a GitHub release actually needs: an annotated tag, a push
+of that tag, and `gh release create` — a plain `git tag` + `git push origin
+<tag>` alone does **not** create a visible GitHub Release, that's a separate
+API call this always makes.
+
+- The version is either explicit (`v1.3.0`) or derived by bumping the latest
+  `vX.Y.Z` tag (`--major`/`--minor`/`--patch`).
+- Release notes are either explicit (`--notes "..."`) or left to
+  `gh release create --generate-notes` (summarizes PRs/commits since the last
+  release) — version and notes are each independently automatic or manual.
+- Refuses uncommitted changes (checked with `git status --porcelain`, so
+  untracked files count too — not just `git diff --quiet`, which misses
+  them) or a current branch that's diverged from its origin tracking branch.
+- `-n`/`--dry-run` previews the version and notes source without tagging or
+  pushing anything.
+
 ---
 
 Genuinely shared logic (the color/step/warn output helpers, base-branch
@@ -282,10 +306,11 @@ stay separate.
 
 - `bash` (works on macOS's bash 3.2)
 - `git`
-- `gh` (GitHub CLI) — for `git pr` and `git haspr`, and for `git sync` only
-  when a target is a PR number or URL (naming branches directly needs no
-  `gh`). `install.sh` installs it via Homebrew if missing (and prints manual
-  instructions on other platforms); not fatal, so the other commands install
+- `gh` (GitHub CLI) — for `git pr`, `git haspr`, and `git release`, and for
+  `git sync` only when a target is a PR number or URL (naming branches
+  directly needs no `gh`). `install.sh` installs it via Homebrew if missing
+  (and prints manual instructions on other platforms); not fatal, so the
+  other commands install
   fine without it.
 
 ## Notes

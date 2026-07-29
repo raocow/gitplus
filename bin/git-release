@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+#
+# git-release — tag the current commit and publish a GitHub release for it.
+#
+# Automates the flow this project's own releases have used by hand: tag,
+# push the tag, `gh release create`. A `git tag` + `git push origin <tag>`
+# alone does NOT create a visible GitHub Release — that's a separate step
+# (`gh release create`) this command always does, so a release never gets
+# silently half-finished.
+#
+# The version can be given explicitly, or auto-derived by bumping the latest
+# vX.Y.Z tag (--major/--minor/--patch). Release notes can be given explicitly
+# (--notes), or left to `gh release create --generate-notes` (summarizes PRs/
+# commits since the last release) — auto or manual, independently, for both.
+#
+# Usage:
+#   git release <version>                 tag+release an explicit version (e.g. v1.3.0)
+#   git release --major|--minor|--patch   bump the latest vX.Y.Z tag instead
+#   git release ... --notes "text"        use these release notes (default: auto-generated)
+#   git release -n|--dry-run              preview only, change nothing
+#   git release -h                        show this help
+#
+# Refuses to run with uncommitted changes, or if the current branch has
+# diverged from its origin tracking branch (a release should tag something
+# that's actually pushed) — same safety posture as `git sync`.
+#
+set -euo pipefail
+
+# Resolve this script's real location (following symlinks — it's installed as
+# one) to find lib/gitplus-common.sh, shared across the git-* tools:
+# require_git_repo(), require_gh(), resolve_base(), step()/warn().
+_src="${BASH_SOURCE[0]}"
+while [ -h "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
+
+usage() {
+  cat <<'EOF'
+git release — tag the current commit and publish a GitHub release for it.
+
+Automates tag + push + `gh release create` — a plain tag push alone doesn't
+create a visible GitHub Release, that's a separate step this always does.
+
+Usage:
+  git release <version>                 tag+release an explicit version (e.g. v1.3.0)
+  git release --major|--minor|--patch   bump the latest vX.Y.Z tag instead
+  git release ... --notes "text"        use these release notes (default: auto-generated
+                                         by `gh release create --generate-notes`)
+  git release -n|--dry-run              preview only, change nothing
+  git release -h                        show this help
+
+Refuses uncommitted changes, or a current branch that's diverged from its
+origin tracking branch — a release should tag something that's actually
+pushed, not local-only work.
+EOF
+}
+
+version=""
+bump=""
+notes=""
+notes_given=0
+dry=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --major|--minor|--patch) bump="${1#--}" ;;
+    --notes) shift; notes="${1:-}"; notes_given=1 ;;
+    -n|--dry-run) dry=1 ;;
+    -*) echo "git release: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    *)
+      if [ -n "$version" ]; then
+        echo "git release: only one version allowed" >&2; exit 2
+      fi
+      version="$1" ;;
+  esac
+  shift
+done
+
+if [ -n "$version" ] && [ -n "$bump" ]; then
+  echo "git release: can't combine an explicit version with --major/--minor/--patch" >&2; exit 2
+fi
+if [ -z "$version" ] && [ -z "$bump" ]; then
+  echo "git release: specify a version (e.g. v1.3.0) or --major/--minor/--patch to bump the latest tag" >&2; exit 2
+fi
+
+require_git_repo "git release"
+require_gh "git release"
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "git release: you have uncommitted changes — commit or stash them first" >&2
+  exit 1
+fi
+
+git fetch --quiet origin 2>/dev/null || true
+
+current="$(git rev-parse --abbrev-ref HEAD)"
+[ "$current" != "HEAD" ] || {
+  echo "git release: detached HEAD — check out a branch first" >&2; exit 1; }
+
+if git show-ref --verify --quiet "refs/remotes/origin/$current"; then
+  local_sha="$(git rev-parse HEAD)"
+  remote_sha="$(git rev-parse "origin/$current")"
+  if [ "$local_sha" != "$remote_sha" ]; then
+    echo "git release: '$current' and 'origin/$current' differ — push first" >&2
+    exit 1
+  fi
+else
+  echo "git release: '$current' has no origin tracking branch — push it first" >&2
+  exit 1
+fi
+
+base="$(resolve_base "")"
+[ "$current" = "$base" ] || warn "releasing from '$current', not '$base'"
+
+latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)"
+
+if [ -n "$bump" ]; then
+  if [ -z "$latest_tag" ]; then
+    echo "git release: no existing vX.Y.Z tag to bump from — specify an explicit version instead" >&2
+    exit 1
+  fi
+  ver="${latest_tag#v}"
+  IFS='.' read -r maj min pat <<EOF
+$ver
+EOF
+  case "$bump" in
+    major) maj=$((maj + 1)); min=0; pat=0 ;;
+    minor) min=$((min + 1)); pat=0 ;;
+    patch) pat=$((pat + 1)) ;;
+  esac
+  version="v$maj.$min.$pat"
+fi
+
+case "$version" in
+  v[0-9]*.[0-9]*.[0-9]*) ;;
+  *) echo "git release: '$version' doesn't look like vX.Y.Z" >&2; exit 2 ;;
+esac
+
+if git rev-parse --verify --quiet "refs/tags/$version" >/dev/null 2>&1; then
+  echo "git release: tag '$version' already exists" >&2
+  exit 1
+fi
+
+if [ "$dry" = 1 ]; then
+  if [ "$notes_given" = 1 ]; then notes_desc="with the given notes"; else notes_desc="with auto-generated notes"; fi
+  echo "Would tag HEAD as $version${latest_tag:+ (latest: $latest_tag)}, push it, and create a GitHub release $notes_desc."
+  exit 0
+fi
+
+git tag -a "$version" -m "$version"
+git push --quiet origin "$version"
+step "tagged and pushed $version"
+
+if [ "$notes_given" = 1 ]; then
+  gh release create "$version" --title "$version" --notes "$notes" >/dev/null
+else
+  gh release create "$version" --title "$version" --generate-notes >/dev/null
+fi
+url="$(gh release view "$version" --json url --jq .url 2>/dev/null || true)"
+step "released $version${url:+ — $url}"
