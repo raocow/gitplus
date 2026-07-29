@@ -1,23 +1,19 @@
 #autoload
 #
-# Completion for `git sweep` — real local branches (minus the current one,
-# which sweep always refuses to target) as positional args; real branches
-# for -b's value. Flags only surface once you've typed a leading '-', so a
-# bare TAB leads with branches — the point of naming one.
+# Completion for `git sweep` — real LOCAL branches (via
+# _gitplus_local_branch_names — sweep can only ever target refs/heads, never
+# a remote-tracking ref) as positional targets, alongside flags. -b's value
+# still uses the broader _gitplus_branch_names since a base can legitimately
+# be remote-only. Flags are always offered on a bare TAB (not gated behind
+# typing '-' first) — unlike git-pr's ids-first design, sweep's flags (-f,
+# -n) are common enough to want visible up front, and hiding them would be a
+# regression from before sweep took positional targets at all.
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   _message -r 'not inside a git repository'; return
 fi
 case ${words[CURRENT-1]} in
-  -b|--base) _gitplus_branches; return ;;
+  -b|--base) _gitplus_branch_names; return ;;
 esac
-if [[ $PREFIX == -* ]]; then
-  _alternative 'flags:Flag:(-f --force -n --dry-run -b --base -h --help)'
-  return
-fi
-local current; current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-local -a branches
-branches=(${(f)"$(git for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null)"})
-branches=(${branches:#$current})
-(( $#branches )) || return
-local expl
-_wanted branches expl 'Branch' compadd -a branches
+_alternative \
+  'flags:Flag:(-f --force -n --dry-run -b --base -h --help)' \
+  'branches:Branch:_gitplus_local_branch_names'

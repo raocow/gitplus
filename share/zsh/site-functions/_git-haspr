@@ -6,4 +6,4 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 _alternative \
   'flags:Flag:(-h --help)' \
-  'branches:Branch:_gitplus_branches'
+  'branches:Branch:_gitplus_branch_names'

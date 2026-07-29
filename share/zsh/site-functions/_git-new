@@ -10,7 +10,7 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   _message -r 'not inside a git repository'; return
 fi
 case ${words[CURRENT-1]} in
-  -b|--base) _gitplus_branches; return ;;
+  -b|--base) _gitplus_branch_names; return ;;
 esac
 if [[ ${words[CURRENT]} == -* ]]; then
   _alternative 'flags:Flag:(-b --base -h --help)'
