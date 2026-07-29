@@ -1,6 +1,6 @@
 .TH GIT-WT 1 "2026-07-29" "gitplus" "gitplus Manual"
 .SH NAME
-git-wt \- print the worktree path that already has a branch checked out
+git-wt \- check out a branch here, freeing it from another worktree first
 .SH SYNOPSIS
 .B git wt
 .RI ( BRANCH | PR# | URL |.|@)
@@ -9,50 +9,45 @@ git-wt \- print the worktree path that already has a branch checked out
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 A branch can only ever be checked out in one worktree at a time (a hard git
-rule). Given a branch name, PR number, PR URL, or
-.RI ' . '/' @ '
-(the current branch \(em same grammar as
-.BR "git pr" / "git sync" ),
+rule) \(em normally a hard stop:
+.B "git pr"
+and
+.B "git sync"
+just refuse and report where the branch already is.
 .B git wt
-prints the path of the worktree that already has that branch checked out:
-the current worktree's path if you're already on it, another worktree's
-path if it's checked out there, or a clear error (exit 1) if it isn't
-checked out anywhere at all. A PR number or URL is resolved to its head
-branch via
-.B gh
-first. It doesn't check anything out or create anything.
+instead frees it: it detaches the
+.I other
+worktree's HEAD at its current commit (safe \(em doesn't touch that
+worktree's working tree or any uncommitted changes there at all, it just
+stops it holding the branch name), then checks the branch out in the
+.B current
+worktree. A purely local operation with no shell integration needed, since
+it never has to move you anywhere.
 .PP
-Paired with the
-.B gwt
-shell function for an actual instant
-.BR cd :
-a plain script can never change its parent shell's directory, so
-.B git wt
-only resolves the path \(em
-.B gwt
-does the
-.BR cd .
-See
-.I share/zsh/gwt.zsh
-in the gitplus source; source it from
-.I ~/.zshrc
-to get the function.
+The argument can be a branch name, PR number, PR URL, or
+.RI ' . '/' @ '
+(the current branch) \(em same grammar as
+.BR "git pr" / "git sync" .
+A PR number or URL is resolved to its head branch via
+.B gh
+first.
+.PP
+.B "git pr <id>"
+uses the same free-it-first logic internally, so checking out a PR whose
+branch is checked out elsewhere just works instead of refusing.
 .SH OPTIONS
 .TP
 .BR \-h ", " \-\-help
 Show usage and exit.
 .SH EXAMPLES
 .TP
-.B gwt spec-first
-Jump straight to whichever worktree has
+.B git wt spec-first
+Free
 .I spec-first
-checked out.
+from wherever it's checked out and switch to it here.
 .TP
-.B gwt 132
+.B git wt 132
 Same, but naming a PR number instead of its head branch.
-.TP
-.B cd "$(git wt spec-first)"
-The same thing, spelled out without the shell function.
 .SH SEE ALSO
 .BR git-sync (1),
 .BR git-pr (1),

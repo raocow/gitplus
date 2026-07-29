@@ -667,14 +667,13 @@ if [ -n "$info" ]; then
   num=${info%% *}; branch=${info#* }
   # A branch already checked out in another worktree can't be checked out
   # here too (a hard git rule) — `gh pr checkout` fails on it exactly like it
-  # fails on a merged PR's deleted head branch, so without this check the
-  # code below misdiagnoses it as "gone from origin" and tries a fetch/switch
-  # that's equally doomed, ending in a confusing "may have diverged" error
-  # for a branch that's actually fine, just in use somewhere else.
-  if wt="$(worktree_path_for_branch "$branch")"; then
-    echo "git pr: '$branch' (PR #$num) is already checked out in another worktree: $wt" >&2
-    exit 1
-  fi
+  # fails on a merged PR's deleted head branch, so without freeing it first
+  # the code below would misdiagnose this as "gone from origin" and try a
+  # fetch/switch that's equally doomed, ending in a confusing "may have
+  # diverged" error for a branch that's actually fine, just in use
+  # somewhere else. Freeing it (detaching that worktree's HEAD — safe, its
+  # working tree is untouched) means checkout just works normally below.
+  free_branch_from_other_worktree "$branch" || exit 1
   # gh pr checkout creates the branch or fast-forwards an existing one, leaving
   # us on it.
   if gh pr checkout "$id" >/dev/null 2>&1; then
