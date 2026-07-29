@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# git-wt — print the worktree path that already has <branch> checked out.
+#
+# Paired with the `gwt` shell function (share/zsh/gwt.zsh) for an actual
+# instant `cd`: a script run via `git <verb>` is always a subprocess, and no
+# subprocess can change its parent shell's directory — so this only resolves
+# and prints the path; the shell function does the actual `cd`. Useful on its
+# own too (scripting, or just checking where a branch lives).
+#
+# Usage:
+#   git wt <branch>   print the worktree path for <branch> — the current
+#                     worktree's path if you're already on it, another
+#                     worktree's path if it's checked out there, or a
+#                     "not checked out anywhere" error otherwise
+#   git wt -h         show this help
+#
+set -euo pipefail
+
+# Resolve this script's real location (following symlinks — it's installed as
+# one) to find lib/gitplus-common.sh, shared across the git-* tools:
+# require_git_repo() and worktree_path_for_branch() here.
+_src="${BASH_SOURCE[0]}"
+while [ -h "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
+
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+git wt — print the worktree path that already has <branch> checked out.
+
+Doesn't check anything out or create anything — a branch can only ever be
+checked out in one worktree at a time (a hard git rule), so this just finds
+which one that is: the current worktree if you're already on <branch>,
+another worktree's path if it's checked out there, or a clear error if it
+isn't checked out anywhere at all.
+
+Paired with the `gwt` shell function for an instant `cd` (a plain script
+can't change its parent shell's directory) — see share/zsh/gwt.zsh.
+
+Usage:
+  git wt <branch>   print the worktree path for <branch>
+  git wt -h         show this help
+EOF
+    exit 0 ;;
+esac
+
+require_git_repo "git wt"
+
+branch="${1:-}"
+[ -z "$branch" ] && { echo "git wt: specify a branch" >&2; exit 2; }
+
+here="$(git rev-parse --show-toplevel)"
+current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [ "$branch" = "$current" ]; then
+  printf '%s\n' "$here"
+  exit 0
+fi
+
+if wt="$(worktree_path_for_branch "$branch")"; then
+  printf '%s\n' "$wt"
+  exit 0
+fi
+
+echo "git wt: '$branch' isn't checked out in any worktree" >&2
+exit 1
