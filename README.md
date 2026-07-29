@@ -85,7 +85,7 @@ on `fpath` and you can drop it.)
 | [`git new`](#git-new) | Create + switch to a branch, with short-name Tab-completion |
 | [`git haspr`](#git-haspr) | Check whether a branch already has a PR |
 | [`git done`](#git-done) | Switch back to base, fast-forward it, delete the branch you left |
-| [`git wt`](#git-wt--gwt) / `gwt` | Jump straight to whichever worktree already has a branch checked out |
+| [`git wt`](#git-wt) | Check out a branch here, freeing it from another worktree first |
 | [`git release`](#git-release) | Tag the current commit and publish a GitHub release for it |
 
 Each takes `-h` for a short usage summary, or `--help` to open its full man
@@ -184,7 +184,8 @@ Requires the GitHub CLI (`gh`).
   fast-forwards an existing one, so you're never on a stale copy. Falls back
   to `refs/pull/<n>/head` for a merged/closed PR whose branch was deleted,
   or — offline — to a local branch stamped with the PR number (switched to
-  as-is, not updated).
+  as-is, not updated). If the branch is already checked out in another
+  worktree, it's freed from there first (see `git wt`) instead of refusing.
 - **Inspect without checking out**: `git pr list <id...>` shows the
   title/link for any number of PRs, any author, any state. `.`/`@` works
   here too. (`git pr <id> <id>` — 2+ ids, a range, or `-x`, no `list` — does
@@ -232,24 +233,26 @@ landed or got closed before you create a duplicate. Prints the URL and state
 and exits 0 if found; prints a clear message and exits 1 otherwise, so it's
 usable in scripts: `git haspr || gh pr create`.
 
-### `git wt` / `gwt`
+### `git wt`
 
 ```
-git wt <branch>
-gwt <branch>
+git wt <branch|PR#|url|.|@>
 ```
 
 A branch can only ever be checked out in **one worktree at a time** (a hard
-git rule, not a limitation of these tools). `git wt <branch>` prints the path
-of the worktree that already has it — the current worktree if you're already
-on it, another worktree's path if it's checked out there, or a clear error if
-it isn't checked out anywhere.
+git rule) — normally a hard stop: `git pr <id>`/`git sync <id>` just refuse
+and tell you where it is. `git wt <id>` instead **frees it and checks it out
+here**: it detaches the *other* worktree's HEAD at its current commit (safe —
+doesn't touch that worktree's working tree or uncommitted changes at all,
+just stops it holding the branch name) and switches to the branch in the
+current worktree. A purely local operation — no shell integration needed,
+since it never has to move you anywhere.
 
-`gwt <branch>` is the actual instant `cd` — a plain script can never change
-its parent shell's directory, so `git wt` only resolves the path and `gwt` (a
-real shell function, not a git subcommand) does the `cd`. Source
-`share/zsh/gwt.zsh` from `~/.zshrc` to get it (see Homebrew caveats, or the
-dev-checkout fpath override in Install, for where that lives).
+The id can be a branch name, PR number, PR URL, or `.`/`@` (the current
+branch) — same grammar as `git pr`/`git sync`; a PR number/URL is resolved to
+its head branch via `gh` first. `git pr <id>` uses the same free-it-first
+logic internally, so `git pr 132` also just works even when #132's branch is
+checked out elsewhere.
 
 ### `git done`
 

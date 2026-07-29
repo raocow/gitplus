@@ -109,3 +109,26 @@ worktree_path_for_branch() {
   [ -n "$found" ] && { printf '%s\n' "$found"; return 0; }
   return 1
 }
+
+# free_branch_from_other_worktree <branch> — if <branch> is checked out in a
+# worktree OTHER than the current one, detach that worktree's HEAD at its
+# current commit so the branch is free to check out here instead. Detaching
+# is safe: `git checkout --detach HEAD` doesn't touch the working tree or
+# index at all, so any uncommitted work in that other worktree rides along
+# unchanged — it's just no longer attached to the branch name. Warns (but
+# still proceeds) if that worktree is dirty, purely so the fact that
+# uncommitted work is now sitting on a detached HEAD isn't a silent surprise.
+# No-op (prints nothing, returns 0) if the branch isn't checked out anywhere
+# else. Returns 1 with a message on stderr if the detach itself fails.
+free_branch_from_other_worktree() {
+  local branch="$1" wt
+  wt="$(worktree_path_for_branch "$branch")" || return 0
+  if [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]; then
+    warn "'$branch' has uncommitted changes in $wt — detaching it there anyway (nothing is lost, just no longer on that branch name)"
+  fi
+  if ! git -C "$wt" checkout --quiet --detach HEAD >/dev/null 2>&1; then
+    echo "couldn't free '$branch' from $wt — resolve by hand" >&2
+    return 1
+  fi
+  step "freed '$branch' from $wt (now detached there)"
+}
