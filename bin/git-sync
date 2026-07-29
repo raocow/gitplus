@@ -177,47 +177,70 @@ synced=(); locals=(); uptodate=(); pulled=(); pruned=(); conflicts=(); skipped=(
 sync_one() {  # sync_one <branch> <create_remote 0|1>
   local b="$1" create_remote="$2"
 
+  # Syncing means rebasing+pushing THIS branch, which normally happens by
+  # checking it out here. If it's already checked out in another worktree (a
+  # hard git rule — one worktree per branch), checking it out here is
+  # impossible, but the underlying work isn't: `git -C <dir>` runs every git
+  # command against that worktree directly, without touching this one or
+  # needing to actually be there. $dir is "." (here, needs an explicit
+  # checkout below) unless the branch already lives elsewhere, in which case
+  # it's already checked out there — no checkout step needed, just operate
+  # in place via $dir.
+  local dir="."
+  local wt
+  if wt="$(worktree_path_for_branch "$b")"; then
+    if [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]; then
+      skipped+=("$b (dirty in other worktree: $wt)"); return
+    fi
+    dir="$wt"
+  fi
+
   # The base branch (or a target that is the base): a safe pull, never a push.
   if [ "$b" = "$base" ]; then
-    git show-ref --verify --quiet "refs/remotes/origin/$base" || { skipped+=("$b (no origin/$base)"); return; }
-    git checkout --quiet "$b" 2>/dev/null || { skipped+=("$b (checkout failed)"); return; }
-    if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$base")" ]; then uptodate+=("$b"); return; fi
-    if git rebase "origin/$base" >/dev/null 2>&1; then pulled+=("$b"); else
-      git rebase --abort >/dev/null 2>&1 || true; conflicts+=("$b"); fi
+    git -C "$dir" show-ref --verify --quiet "refs/remotes/origin/$base" || { skipped+=("$b (no origin/$base)"); return; }
+    if [ "$dir" = "." ]; then
+      git checkout --quiet "$b" 2>/dev/null || { skipped+=("$b (checkout failed)"); return; }
+    fi
+    if [ "$(git -C "$dir" rev-parse HEAD)" = "$(git -C "$dir" rev-parse "origin/$base")" ]; then uptodate+=("$b"); return; fi
+    if git -C "$dir" rebase "origin/$base" >/dev/null 2>&1; then pulled+=("$b"); else
+      git -C "$dir" rebase --abort >/dev/null 2>&1 || true; conflicts+=("$b"); fi
     return
   fi
 
   # A named target that isn't local yet but exists on origin → create a tracking
-  # branch so it can be rebased and pushed.
-  if git show-ref --verify --quiet "refs/heads/$b"; then
-    git checkout --quiet "$b" 2>/dev/null || { skipped+=("$b (checkout failed)"); return; }
-  elif git show-ref --verify --quiet "refs/remotes/origin/$b"; then
-    git checkout --quiet -B "$b" --track "origin/$b" >/dev/null 2>&1 \
-      || { skipped+=("$b (couldn't create from origin/$b)"); return; }
-  else
-    skipped+=("$b (no such local or origin branch)"); return
+  # branch so it can be rebased and pushed. Only applies here ($dir is "."): a
+  # branch found in another worktree already exists locally by definition.
+  if [ "$dir" = "." ]; then
+    if git show-ref --verify --quiet "refs/heads/$b"; then
+      git checkout --quiet "$b" 2>/dev/null || { skipped+=("$b (checkout failed)"); return; }
+    elif git show-ref --verify --quiet "refs/remotes/origin/$b"; then
+      git checkout --quiet -B "$b" --track "origin/$b" >/dev/null 2>&1 \
+        || { skipped+=("$b (couldn't create from origin/$b)"); return; }
+    else
+      skipped+=("$b (no such local or origin branch)"); return
+    fi
   fi
 
   # The reaction git pr merge has when a rebase can't finish: abort it (leave the
   # branch exactly as it was), and record it for the "conflicts" report — never a
   # half-finished rebase left in the tree.
-  if ! git rebase "origin/$base" >/dev/null 2>&1; then
-    git rebase --abort >/dev/null 2>&1 || true
+  if ! git -C "$dir" rebase "origin/$base" >/dev/null 2>&1; then
+    git -C "$dir" rebase --abort >/dev/null 2>&1 || true
     conflicts+=("$b"); return
   fi
 
   # Push. force-with-lease once there's a remote to lease against; -u to create
   # the remote on first push when allowed (create_remote); otherwise a purely
   # local branch is left as-is (never auto-published by a sweep).
-  if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 \
-     || git show-ref --verify --quiet "refs/remotes/origin/$b"; then
-    if git push --force-with-lease --force-if-includes origin "$b" >/dev/null 2>&1; then
+  if git -C "$dir" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 \
+     || git -C "$dir" show-ref --verify --quiet "refs/remotes/origin/$b"; then
+    if git -C "$dir" push --force-with-lease --force-if-includes origin "$b" >/dev/null 2>&1; then
       synced+=("$b")
     else
       skipped+=("$b (push refused — protected branch or lost lease)")
     fi
   elif [ "$create_remote" = 1 ]; then
-    if git push -u origin "$b" >/dev/null 2>&1; then synced+=("$b"); else skipped+=("$b (push failed)"); fi
+    if git -C "$dir" push -u origin "$b" >/dev/null 2>&1; then synced+=("$b"); else skipped+=("$b (push failed)"); fi
   else
     locals+=("$b")
   fi
@@ -326,6 +349,12 @@ if [ "$all" = 1 ]; then
     [ "$b" = "$base" ] && continue
     if is_excluded "$b"; then skipped+=("$b (excluded)"); continue; fi
     if git merge-base --is-ancestor "$b" "origin/$base" 2>/dev/null; then
+      # `git branch -d` refuses a branch checked out in another worktree too
+      # (same underlying rule) — worth naming up front rather than a vague
+      # "(couldn't delete)" for something that was never going to work.
+      if wt="$(worktree_path_for_branch "$b")"; then
+        skipped+=("$b (merged, but checked out in another worktree: $wt)"); continue
+      fi
       if git branch -d "$b" >/dev/null 2>&1; then pruned+=("$b"); else skipped+=("$b (couldn't delete)"); fi
       continue
     fi

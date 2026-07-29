@@ -79,3 +79,33 @@ require_gh() {
   command -v gh >/dev/null 2>&1 || {
     echo "$1: needs the GitHub CLI ('gh') — https://cli.github.com" >&2; exit 1; }
 }
+
+# worktree_path_for_branch <branch> — a branch can be checked out in at most
+# one worktree at a time (a hard git rule, not a limitation of these tools),
+# so any command that's about to check out/rebase-in-place a named branch
+# needs to know up front whether it's already checked out SOMEWHERE ELSE.
+# Prints that other worktree's path and returns 0 if so; prints nothing and
+# returns 1 otherwise (not checked out anywhere else, or checked out right
+# here — checking out a branch you're already on isn't a conflict).
+#
+# Reads `git worktree list --porcelain`, whose entries look like:
+#   worktree /path/to/wt
+#   HEAD <sha>
+#   branch refs/heads/<name>
+# (or `detached` instead of the branch line). Matching the branch line to the
+# worktree path above it means walking the stream by hand rather than
+# grepping in isolation.
+worktree_path_for_branch() {
+  local branch="$1" here wtpath found=""
+  here="$(git rev-parse --show-toplevel 2>/dev/null)"
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wtpath="${line#worktree }" ;;
+      "branch refs/heads/$branch")
+        [ "$wtpath" != "$here" ] && found="$wtpath"
+        ;;
+    esac
+  done < <(git worktree list --porcelain)
+  [ -n "$found" ] && { printf '%s\n' "$found"; return 0; }
+  return 1
+}
