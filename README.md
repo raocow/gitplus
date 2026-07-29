@@ -235,15 +235,18 @@ usable in scripts: `git haspr || gh pr create`.
 ### `git wt` / `gwt`
 
 ```
-git wt <branch>
-gwt <branch>
+git wt <branch|PR#|url|.|@>
+gwt <branch|PR#|url|.|@>
 ```
 
 A branch can only ever be checked out in **one worktree at a time** (a hard
-git rule, not a limitation of these tools). `git wt <branch>` prints the path
-of the worktree that already has it — the current worktree if you're already
-on it, another worktree's path if it's checked out there, or a clear error if
-it isn't checked out anywhere.
+git rule, not a limitation of these tools). `git wt <id>` prints the path of
+the worktree that already has that branch checked out — the current worktree
+if you're already on it, another worktree's path if it's checked out there,
+or a clear error if it isn't checked out anywhere. The id can be a branch
+name, PR number, PR URL, or `.`/`@` (the current branch) — same grammar as
+`git pr`/`git sync`; a PR number/URL is resolved to its head branch via `gh`
+first.
 
 `gwt <branch>` is the actual instant `cd` — a plain script can never change
 its parent shell's directory, so `git wt` only resolves the path and `gwt` (a
