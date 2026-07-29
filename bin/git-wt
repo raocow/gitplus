@@ -8,12 +8,19 @@
 # and prints the path; the shell function does the actual `cd`. Useful on its
 # own too (scripting, or just checking where a branch lives).
 #
+# The argument can be a PR number, a URL, '.'/'@' (the current branch), or a
+# plain branch name — same grammar as `git pr`/`git sync`. A PR number/URL is
+# resolved to its head branch via `gh` first; without that, `git wt 132`
+# would look for a worktree on a branch literally named "132" instead of the
+# PR's actual head branch (exactly the branch `git pr 132` already reports).
+#
 # Usage:
-#   git wt <branch>   print the worktree path for <branch> — the current
-#                     worktree's path if you're already on it, another
-#                     worktree's path if it's checked out there, or a
-#                     "not checked out anywhere" error otherwise
-#   git wt -h         show this help
+#   git wt <branch|PR#|url|.|@>   print the worktree path for it — the
+#                                 current worktree's path if you're already
+#                                 on it, another worktree's path if it's
+#                                 checked out there, or a "not checked out
+#                                 anywhere" error otherwise
+#   git wt -h                    show this help
 #
 set -euo pipefail
 
@@ -39,12 +46,16 @@ which one that is: the current worktree if you're already on <branch>,
 another worktree's path if it's checked out there, or a clear error if it
 isn't checked out anywhere at all.
 
+The argument can be a PR number, a URL, '.'/'@' (the current branch), or a
+plain branch name — same grammar as `git pr`/`git sync`. A PR number/URL is
+resolved to its head branch via `gh` first.
+
 Paired with the `gwt` shell function for an instant `cd` (a plain script
 can't change its parent shell's directory) — see share/zsh/gwt.zsh.
 
 Usage:
-  git wt <branch>   print the worktree path for <branch>
-  git wt -h         show this help
+  git wt <branch|PR#|url|.|@>   print the worktree path for it
+  git wt -h                    show this help
 EOF
     exit 0 ;;
 esac
@@ -52,7 +63,21 @@ esac
 require_git_repo "git wt"
 
 branch="${1:-}"
-[ -z "$branch" ] && { echo "git wt: specify a branch" >&2; exit 2; }
+[ -z "$branch" ] && { echo "git wt: specify a branch or PR number" >&2; exit 2; }
+
+# '.'/'@' means the current branch (same convention as git pr/git sync).
+if [ "$branch" = "." ] || [ "$branch" = "@" ]; then
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+fi
+
+# A PR number or URL resolves to its head branch via `gh`. Falls through to
+# treating the original token as a literal branch name if `gh` isn't
+# available or the lookup fails (offline, no such PR) — same fallback
+# posture as git-sync's resolve_target().
+if printf '%s' "$branch" | grep -qE '^[0-9]+$|://'; then
+  resolved="$(gh pr view "$branch" --json headRefName --jq '.headRefName' 2>/dev/null || true)"
+  [ -n "$resolved" ] && branch="$resolved"
+fi
 
 here="$(git rev-parse --show-toplevel)"
 current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
