@@ -1,0 +1,53 @@
+.TH GIT-WT 1 "2026-07-29" "gitplus" "gitplus Manual"
+.SH NAME
+git-wt \- print the worktree path that already has a branch checked out
+.SH SYNOPSIS
+.B git wt
+.I BRANCH
+.br
+.B git wt
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+A branch can only ever be checked out in one worktree at a time (a hard git
+rule). Given
+.IR BRANCH ,
+.B git wt
+prints the path of the worktree that already has it: the current worktree's
+path if you're already on
+.IR BRANCH ,
+another worktree's path if it's checked out there, or a clear error
+(exit 1) if it isn't checked out anywhere at all. It doesn't check anything
+out or create anything.
+.PP
+Paired with the
+.B gwt
+shell function for an actual instant
+.BR cd :
+a plain script can never change its parent shell's directory, so
+.B git wt
+only resolves the path \(em
+.B gwt
+does the
+.BR cd .
+See
+.I share/zsh/gwt.zsh
+in the gitplus source; source it from
+.I ~/.zshrc
+to get the function.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH EXAMPLES
+.TP
+.B gwt spec-first
+Jump straight to whichever worktree has
+.I spec-first
+checked out.
+.TP
+.B cd "$(git wt spec-first)"
+The same thing, spelled out without the shell function.
+.SH SEE ALSO
+.BR git-sync (1),
+.BR git-pr (1),
+.BR git-worktree (1)

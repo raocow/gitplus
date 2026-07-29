@@ -85,6 +85,7 @@ on `fpath` and you can drop it.)
 | [`git new`](#git-new) | Create + switch to a branch, with short-name Tab-completion |
 | [`git haspr`](#git-haspr) | Check whether a branch already has a PR |
 | [`git done`](#git-done) | Switch back to base, fast-forward it, delete the branch you left |
+| [`git wt`](#git-wt--gwt) / `gwt` | Jump straight to whichever worktree already has a branch checked out |
 
 Each takes `-h` for a short usage summary, or `--help` to open its full man
 page (installed to `share/man/man1` by `install.sh` and by Homebrew).
@@ -229,6 +230,25 @@ Checks whether a branch (current branch by default) already has a PR, in
 landed or got closed before you create a duplicate. Prints the URL and state
 and exits 0 if found; prints a clear message and exits 1 otherwise, so it's
 usable in scripts: `git haspr || gh pr create`.
+
+### `git wt` / `gwt`
+
+```
+git wt <branch>
+gwt <branch>
+```
+
+A branch can only ever be checked out in **one worktree at a time** (a hard
+git rule, not a limitation of these tools). `git wt <branch>` prints the path
+of the worktree that already has it — the current worktree if you're already
+on it, another worktree's path if it's checked out there, or a clear error if
+it isn't checked out anywhere.
+
+`gwt <branch>` is the actual instant `cd` — a plain script can never change
+its parent shell's directory, so `git wt` only resolves the path and `gwt` (a
+real shell function, not a git subcommand) does the `cd`. Source
+`share/zsh/gwt.zsh` from `~/.zshrc` to get it (see Homebrew caveats, or the
+dev-checkout fpath override in Install, for where that lives).
 
 ### `git done`
 
