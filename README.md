@@ -92,7 +92,7 @@ page (installed to `share/man/man1` by `install.sh` and by Homebrew).
 ### `git sweep`
 
 ```
-git sweep [-f|--force] [-n|--dry-run] [-b|--base <name>]
+git sweep [<branch>...] [-f|--force] [-n|--dry-run] [-b|--base <name>]
 ```
 
 - Fetches first and compares against the base's **remote tip**
@@ -104,6 +104,9 @@ git sweep [-f|--force] [-n|--dry-run] [-b|--base <name>]
   current, and force-deletes (`-D`) — also clears never-PR'd, squash-merged,
   or genuinely unmerged branches (this can delete unmerged work — preview
   with `-n` first).
+- Naming one or more branches sweeps just those instead of the whole repo —
+  same safety rule (skipped unless merged, unless `-f`). Refuses to name the
+  base or current branch.
 
 ### `git wsweep`
 

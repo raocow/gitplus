@@ -3,6 +3,7 @@
 git-sweep \- delete local branches already merged into the base branch
 .SH SYNOPSIS
 .B git sweep
+.RI [ BRANCH " ...]"
 [\fB\-f\fR|\fB\-\-force\fR]
 [\fB\-b\fR|\fB\-\-base\fR \fINAME\fR]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
@@ -22,7 +23,16 @@ so no unmerged work is lost. It deliberately avoids a bare
 which rechecks mergedness against your current branch and so wrongly refuses
 branches merged upstream when the local base is stale. Squash-merged branches
 are not caught, because a squash is not an ancestor of the base.
+.PP
+Naming one or more branches sweeps just those instead of the whole repo. The
+same safety rule applies: a named branch is skipped unless it's merged into
+the base, unless
+.B \-\-force
+is given. Refuses to name the base or the current branch.
 .SH OPTIONS
+.TP
+.I BRANCH " ..."
+Sweep just the given branch(es) instead of the whole repo.
 .TP
 .BR \-f ", " \-\-force
 Target every local branch except the base and the current one and force-delete

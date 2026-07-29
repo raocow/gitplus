@@ -18,8 +18,14 @@
 # branches that were never PR'd/merged and squash-merged leftovers. This DELETES
 # UNMERGED WORK; use `-n` first to see exactly what it would remove.
 #
+# Naming branch(es) targets just those instead of the whole repo — same rules
+# apply: safe by default (skips a named branch that isn't merged, same
+# ancestor check), --force deletes it regardless. Refuses to name the base or
+# current branch.
+#
 # Usage:
 #   git sweep            delete local branches merged into the base (safe, -d)
+#   git sweep <branch...> delete just the given branch(es) (safe unless -f)
 #   git sweep -f         force: -D every local branch except base + current
 #   git sweep -n         dry run — list what would be deleted, change nothing
 #   git sweep -b NAME    base branch to compare against (default: origin's default)
@@ -51,12 +57,17 @@ branches are NOT caught (a squash isn't an ancestor).
 with `git branch -D` — clearing never-PR'd / squash-merged / unmerged branches
 too. This deletes unmerged work; run with -n first.
 
+Naming branch(es) sweeps just those instead of the whole repo — same safety
+rule (skipped unless merged, unless -f). Refuses to name the base or current
+branch.
+
 Usage:
-  git sweep          delete local branches merged into the base (safe, -d)
-  git sweep -f       force: -D every local branch except base + current
-  git sweep -n       dry run — list what would be deleted, change nothing
-  git sweep -b NAME  base branch to compare against (default: origin's default)
-  git sweep -h       show this help
+  git sweep            delete local branches merged into the base (safe, -d)
+  git sweep <branch...> delete just the given branch(es) (safe unless -f)
+  git sweep -f         force: -D every local branch except base + current
+  git sweep -n         dry run — list what would be deleted, change nothing
+  git sweep -b NAME    base branch to compare against (default: origin's default)
+  git sweep -h         show this help
 
   -f and -n combine: `git sweep -f -n` previews the force sweep.
 EOF
@@ -65,13 +76,15 @@ EOF
 dry=0
 force=0
 base=""
+raw_targets=()   # explicit branch name(s): sweep just these instead of the whole repo
 while [ $# -gt 0 ]; do
   case "$1" in
     -n|--dry-run) dry=1 ;;
     -f|--force) force=1 ;;
     -b|--base) shift; base="${1:-}" ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "git sweep: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    -*) echo "git sweep: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    *) raw_targets+=("$1") ;;
   esac
   shift
 done
@@ -101,36 +114,77 @@ fi
 
 current=$(git rev-parse --abbrev-ref HEAD)
 
-# Candidate branches: with --force, every local branch; otherwise only those
-# merged into the base tip. Either way we exclude the base and the current branch.
-if [ "$force" = 1 ]; then
-  list=$(git branch --format='%(refname:short)')
-else
-  list=$(git branch --merged "$mergeref" --format='%(refname:short)')
-fi
+if [ "${#raw_targets[@]}" -gt 0 ]; then
+  # Explicit branch(es) named: sweep just these instead of the whole repo. Same
+  # safety rule applies (merged-into-base check happens below, in the deletion
+  # loop) — naming a branch doesn't bypass it; --force still does.
+  targets=""
+  for b in "${raw_targets[@]}"; do
+    if [ "$b" = "$base" ]; then
+      echo "git sweep: refusing to delete the base branch '$b'" >&2; exit 2
+    fi
+    if [ "$b" = "$current" ]; then
+      echo "git sweep: refusing to delete the current branch '$b' — switch away first" >&2; exit 2
+    fi
+    if ! git show-ref --verify --quiet "refs/heads/$b"; then
+      warn "skipping $b — no such local branch"
+      continue
+    fi
+    case " $targets " in *" $b "*) ;; *) targets="$targets $b" ;; esac
+  done
+  targets=$(echo $targets)  # trim whitespace
 
-targets=""
-while IFS= read -r b; do
-  [ -z "$b" ] && continue
-  [ "$b" = "$base" ] && continue
-  [ "$b" = "$current" ] && continue
-  targets="$targets $b"
-done <<EOF
+  if [ -z "$targets" ]; then
+    echo "git sweep: none of the given branches exist locally." >&2
+    exit 1
+  fi
+else
+  # Candidate branches: with --force, every local branch; otherwise only those
+  # merged into the base tip. Either way we exclude the base and the current branch.
+  if [ "$force" = 1 ]; then
+    list=$(git branch --format='%(refname:short)')
+  else
+    list=$(git branch --merged "$mergeref" --format='%(refname:short)')
+  fi
+
+  targets=""
+  while IFS= read -r b; do
+    [ -z "$b" ] && continue
+    [ "$b" = "$base" ] && continue
+    [ "$b" = "$current" ] && continue
+    targets="$targets $b"
+  done <<EOF
 $list
 EOF
-targets=$(echo $targets)  # trim whitespace
+  targets=$(echo $targets)  # trim whitespace
 
-if [ -z "$targets" ]; then
-  if [ "$force" = 1 ]; then
-    echo "git sweep: no other local branches to delete."
-  else
-    echo "git sweep: nothing merged into '$mergeref' to delete."
+  if [ -z "$targets" ]; then
+    if [ "$force" = 1 ]; then
+      echo "git sweep: no other local branches to delete."
+    else
+      echo "git sweep: nothing merged into '$mergeref' to delete."
+    fi
+    exit 0
   fi
-  exit 0
 fi
 
 if [ "$dry" = 1 ]; then
-  if [ "$force" = 1 ]; then
+  if [ "${#raw_targets[@]}" -gt 0 ] && [ "$force" = 0 ]; then
+    # Named + safe: report each branch's actual fate (some named branches may
+    # not be merged yet), same check the real deletion loop below makes.
+    echo "Would delete (given branches, merged into '$mergeref'):"
+    for b in $targets; do
+      if git merge-base --is-ancestor "$b" "$mergeref"; then
+        echo "  $b"
+      else
+        echo "  $b ${_dim}(skip — not merged into $mergeref)${_off}"
+      fi
+    done
+    exit 0
+  fi
+  if [ "${#raw_targets[@]}" -gt 0 ]; then
+    echo "Would FORCE-delete (given branches):"
+  elif [ "$force" = 1 ]; then
     except="'$base'"
     [ "$current" != "$base" ] && except="$except and '$current'"
     echo "Would FORCE-delete (every local branch except $except):"
