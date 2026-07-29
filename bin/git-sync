@@ -177,6 +177,16 @@ synced=(); locals=(); uptodate=(); pulled=(); pruned=(); conflicts=(); skipped=(
 sync_one() {  # sync_one <branch> <create_remote 0|1>
   local b="$1" create_remote="$2"
 
+  # Syncing means checking THIS branch out right here, which is impossible if
+  # it's already checked out in another worktree (a hard git rule) — without
+  # this, `git checkout` just fails and the vague "(checkout failed)" bucket
+  # gives no hint why, when the real reason (and fix — go there instead) is
+  # completely knowable up front.
+  local wt
+  if wt="$(worktree_path_for_branch "$b")"; then
+    skipped+=("$b (checked out in another worktree: $wt)"); return
+  fi
+
   # The base branch (or a target that is the base): a safe pull, never a push.
   if [ "$b" = "$base" ]; then
     git show-ref --verify --quiet "refs/remotes/origin/$base" || { skipped+=("$b (no origin/$base)"); return; }
