@@ -1,0 +1,16 @@
+#autoload
+#
+# Real branches as actual completion candidates — the compadd-calling
+# counterpart to _gitplus_branches (which just emits plain text for callers
+# that build their own array, e.g. _gitplus_pr_ids). Calling _gitplus_branches
+# itself directly as a completion action hangs: its external pipeline
+# (git | sed | grep | sort) runs unsubshelled inside the completion widget and
+# deadlocks on job control — confirmed via zsh's own watchdog ("Killed by
+# signal in _gitplus_branches after 1s"). Wrapping the same data in a real
+# command-substitution subshell here avoids that; every command that wants a
+# bare branch-name completion should call THIS, not _gitplus_branches.
+local -a branches
+branches=(${(f)"$(_gitplus_branches)"})
+(( $#branches )) || return
+local expl
+_wanted branches expl 'Branch' compadd -a branches
