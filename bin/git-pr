@@ -595,8 +595,15 @@ fi
 if [ "$subcmd" != "merge" ] && [ -z "$id" ]; then
   rows=""
   if [ "${#merge_ids[@]}" -eq 0 ]; then
+    gh_err=$(mktemp)
+    rc=0
     rows="$(gh pr list --author "@me" --state open --limit 100 --json number,url,title \
-      --jq '.[] | "\(.number)\t\(.url)\t\(.title)"' 2>/dev/null || true)"
+      --jq '.[] | "\(.number)\t\(.url)\t\(.title)"' 2>"$gh_err")" || rc=$?
+    err="$(cat "$gh_err")"; rm -f "$gh_err"
+    if [ "$rc" -ne 0 ]; then
+      echo "git pr: couldn't list PRs — ${err:-gh pr list failed (exit $rc)}" >&2
+      exit 1
+    fi
   else
     for tid in "${merge_ids[@]}"; do
       row="$(gh pr view "$tid" --json number,url,title,state \
@@ -631,7 +638,17 @@ EOF
         [ -n "${state:-}" ] && [ "$state" != "OPEN" ] && line="$line [$state]"
         echo "$line"
       done)"
-  [ -n "$listing" ] && printf '%s\n' "$listing"
+  if [ -n "$listing" ]; then
+    printf '%s\n' "$listing"
+  elif [ "${#merge_ids[@]}" -eq 0 ]; then
+    # Genuinely zero PRs is a normal, valid state — but silence here reads
+    # identically whether that's true or the wrong `gh` account is active
+    # (e.g. an unrelated identity that's never authored anything in this
+    # repo). Naming who was actually queried turns that ambiguity into an
+    # immediate, checkable fact instead of a guess.
+    me="$(gh api user --jq .login 2>/dev/null || echo '?')"
+    warn "no open PRs authored by $me in this repo — check 'gh auth status' if that's not who you expected"
+  fi
   if [ "$copy" = 1 ] && [ -n "$listing" ]; then
     printf '%s\n' "$listing" | pbcopy
     printf '%s✓%s %s\n' "$_ok" "$_off" "copied to clipboard" >&2
