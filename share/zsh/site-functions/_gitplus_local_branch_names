@@ -1,0 +1,16 @@
+#autoload
+#
+# LOCAL branches only (refs/heads) as real completion candidates — for
+# commands whose target must actually be a local branch, e.g. `git sweep`,
+# which can only ever delete refs/heads, never a remote-tracking ref.
+# _gitplus_branch_names (refs/heads + refs/remotes) is right for a -b/base
+# value, which can legitimately be remote-only — but for a sweep target it
+# pulls in every remote-tracking ref too, including stale ones left behind
+# for branches already deleted on GitHub and never pruned locally, which is
+# what makes that list balloon (confirmed: 7 local branches vs. 28
+# remote-tracking refs in a real repo).
+local -a branches
+branches=(${(f)"$(git for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null)"})
+(( $#branches )) || return
+local expl
+_wanted branches expl 'Branch' compadd -a branches
