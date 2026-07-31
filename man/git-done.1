@@ -26,13 +26,23 @@ offline or the local base has diverged from
 Refreshing the base first also means the merged-check below is judged against an
 up-to-date base.
 .PP
-Deleting is safe by default:
-.B git branch \-d
-refuses any branch that is not fully merged, so hopping back to the base cannot
-silently drop working code. Note that squash-merged branches look unmerged (a
-squash is not an ancestor of the base) and are refused too; use
-.B \-\-force
-for those.
+Deleting is safe by default: the branch you left is only deleted if it is
+actually merged into the base, checked explicitly with
+.BR "git merge-base --is-ancestor" ,
+.B not
+a bare
+.BR "git branch \-d" .
+That distinction matters:
+.B \-d
+checks mergedness against a branch's own upstream when it has one, not
+against the base you are switching to \(em so a branch that has simply been
+.B push
+ed (true of anything that has ever had a pull request) passes
+.BR \-d 's
+check regardless of whether it was ever merged into the base, silently
+dropping real work. Squash-merged branches still require
+.BR \-\-force :
+a squash is not a literal ancestor of the base either.
 .PP
 On a detached HEAD there is no branch to delete, so
 .B git done

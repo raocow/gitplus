@@ -265,9 +265,13 @@ The bookend to `git pr`:
 - Switches back to the base (`origin/<default>`, usually main),
   **fast-forwards it to origin** (so you land on an up-to-date main with the
   PR you just merged), and deletes the branch you left.
-- Safe by default (`git branch -d`), so hopping back can't silently drop
-  unmerged work — squash-merged branches look unmerged and are refused too;
-  pass `-f`/`--force` (`git branch -D`) when you know the branch is done.
+- Safe by default: only deletes the branch you left if it's actually merged
+  into the base — checked explicitly (`git merge-base --is-ancestor`), **not**
+  a bare `git branch -d`, which checks a branch's own upstream when it has
+  one, not the base — so a merely-*pushed* branch (true of anything that's
+  ever had a PR) would pass regardless of whether it was ever merged,
+  silently dropping real work. Squash-merged branches still require
+  `-f`/`--force`: a squash isn't a literal ancestor of the base either.
 - The fast-forward is best-effort: skipped with a note if you're offline or
   local base has diverged (never a merge commit).
 - On a detached HEAD, it just switches back to base. Already on the base, it

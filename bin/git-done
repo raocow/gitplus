@@ -7,19 +7,24 @@
 # main), fast-forwards it to the latest on origin, and deletes the branch you
 # were on.
 #
-# Safe by default: uses `git branch -d`, which refuses any branch that isn't
-# fully merged — so hopping back to main can't silently drop working code. The
-# catch is squash-merged PR branches: a squash isn't an ancestor of the base, so
-# -d won't see them as merged and will refuse them too. When you know the branch
-# is done, pass --force (`git branch -D`) to delete it regardless.
+# Safe by default: only deletes the branch you left if it's actually merged
+# into the base — checked explicitly with `git merge-base --is-ancestor`, not
+# by trusting a bare `git branch -d`. That distinction matters: -d checks
+# mergedness against a branch's own upstream when it has one, not against the
+# base you're switching to — so a branch that's simply been pushed (true of
+# anything that's ever had a PR) passes -d's check regardless of whether it
+# was ever merged into base, silently dropping real work. Squash-merged PR
+# branches still require --force, same as before: a squash isn't a literal
+# ancestor of the base either. When you know the branch is done, pass --force
+# to delete it regardless.
 #
 # On a detached HEAD there's nothing to delete, so it just switches back to base.
 # If you're already on the base, there's also nothing to delete — it just pulls
 # (fetches and fast-forwards the base to origin).
 #
 # Usage:
-#   git done            switch to the base branch, delete the branch you left (-d)
-#   git done -f         force-delete with -D (unmerged / squash-merged branches)
+#   git done            switch to the base branch, delete the branch you left
+#   git done -f         force-delete (unmerged / squash-merged branches)
 #   git done -b NAME    switch to NAME as the base instead of origin's default
 #   git done -n         dry run — print what it would do, change nothing
 #   git done -h         show this help
@@ -64,16 +69,19 @@ The bookend to `git pr`: after reviewing a checked-out PR branch, return to the
 base (origin's default, usually main), fast-forward it to origin, and delete the
 branch you were on.
 
-Safe by default: `git branch -d` refuses anything not fully merged, so hopping
-back to main can't silently drop working code. Squash-merged branches look
-unmerged to -d and are refused too — use --force (`git branch -D`) for those.
+Safe by default: only deletes the branch you left if it's actually merged into
+the base — checked explicitly (git merge-base --is-ancestor), not via a bare
+`git branch -d` (which checks a branch's own upstream when it has one, not the
+base — so a merely-pushed branch would pass regardless of whether it was ever
+merged). Squash-merged branches still require --force: a squash isn't a
+literal ancestor of the base either.
 
 Already on the base branch? There's nothing to delete, so it just pulls (fetch
 + fast-forward the base to origin).
 
 Usage:
-  git done          switch to the base branch, delete the branch you left (-d)
-  git done -f       force-delete with -D (unmerged / squash-merged branches)
+  git done          switch to the base branch, delete the branch you left
+  git done -f       force-delete (unmerged / squash-merged branches)
   git done -b NAME  use NAME as the base instead of origin's default
   git done -n       dry run — print what it would do, change nothing
   git done -h       show this help
@@ -121,17 +129,16 @@ if [ "$current" = "$base" ]; then
   exit 0
 fi
 
-flag="-d"
-[ "$force" = 1 ] && flag="-D"
-
 if [ "$dry" = 1 ]; then
   echo "Would run:"
   echo "  git switch $base"
   echo "  git fetch origin --prune  &&  git merge --ff-only origin/$base"
   if [ "$detached" = 1 ]; then
     echo "  (detached HEAD — no branch to delete)"
+  elif [ "$force" = 1 ]; then
+    echo "  git branch -D $current"
   else
-    echo "  git branch $flag $current"
+    echo "  (delete $current only if merged into $base; refuse otherwise)"
   fi
   exit 0
 fi
@@ -148,12 +155,20 @@ if [ "$detached" = 1 ]; then
   exit 0
 fi
 
-# --- 3) delete the branch you left. Suppress git's verbose -d warning (it's
-# noisy about "merged upstream but not to HEAD") and print one clear line. Safe
-# -d refuses unmerged (incl. squash-merged) branches — catch that and point at
-# --force rather than letting set -e abort on a bare git error.
+# --- 3) delete the branch you left. NOT via a bare `git branch -d`: -d checks
+# mergedness against the branch's own upstream when it has one, not against
+# $base/HEAD — so a branch that's simply been pushed (the normal case for
+# anything that's ever had a PR) passes trivially, regardless of whether it
+# was ever actually merged into $base. git does print a warning for exactly
+# this ("merged to 'refs/remotes/origin/<branch>', but not yet merged to
+# HEAD") — but that's precisely the case this command exists to refuse, not
+# warn about and delete anyway. So mergedness into $base is checked
+# explicitly here (same fix already applied in git-sweep for a related
+# reason), and -D used either way, since by this point safety has already
+# been verified ourselves.
 sha=$(git rev-parse --short "$current" 2>/dev/null || echo '?')
-if git branch "$flag" "$current" >/dev/null 2>&1; then
+if [ "$force" = 1 ] || git merge-base --is-ancestor "$current" "$base" 2>/dev/null; then
+  git branch -D "$current" >/dev/null 2>&1
   step "deleted $current ${_dim}(was $sha)${_off}"
 else
   warn "kept $current — not fully merged into $base"
