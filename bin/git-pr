@@ -480,7 +480,7 @@ if [ "$subcmd" = "merge" ]; then
           plan+=("#$num $title -- merge ($method)"); continue
         fi
         if err="$(merge_with_retry "$num")"; then
-          step "merged #$num ${_dim}($title)${_off}"
+          step "merged #$num ${_dim}($title) [$head -> $base]${_off}"
           merged+=("#$num $title")
         else
           warn "merge failed for #$num — ${err##*$'\n'}"
@@ -503,7 +503,7 @@ if [ "$subcmd" = "merge" ]; then
         # real conflict, so go straight to rebasing.
         merged_directly=0
         if [ "$status" = "BEHIND" ] && gh pr merge "$num" "$merge_flag" >/dev/null 2>&1; then
-          step "merged #$num ${_dim}($title, no rebase needed)${_off}"
+          step "merged #$num ${_dim}($title, no rebase needed) [$head -> $base]${_off}"
           merged+=("#$num $title")
           merged_directly=1
         fi
@@ -521,7 +521,7 @@ if [ "$subcmd" = "merge" ]; then
           case "$rc" in
             0)
               if err="$(merge_with_retry "$num")"; then
-                step "rebased + merged #$num ${_dim}($title)${_off}"
+                step "rebased + merged #$num ${_dim}($title) [$head -> $base]${_off}"
                 merged+=("#$num $title")
               else
                 warn "rebased #$num but merge still hasn't gone through — rerun 'git pr merge $num' to retry"
@@ -547,7 +547,7 @@ if [ "$subcmd" = "merge" ]; then
           plan+=("#$num $title -- attempt merge ($status)"); continue
         fi
         if err="$(merge_with_retry "$num")"; then
-          step "merged #$num ${_dim}($title)${_off}"
+          step "merged #$num ${_dim}($title) [$head -> $base]${_off}"
           merged+=("#$num $title")
         else
           warn "skipping #$num — $status: ${err##*$'\n'}"
