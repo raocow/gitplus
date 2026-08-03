@@ -9,11 +9,14 @@
 
 # Colorized step output on a terminal (respects NO_COLOR). Every git-* tool
 # narrates its actions in this one consistent format: green ✓ for a
-# completed step, yellow ! for a warning, dim for secondary detail.
+# completed step, yellow ! for a warning, dim for secondary detail, cyan for
+# a branch name called out within a line (matches the cyan already used for
+# completion headers in ~/.zshrc's zstyle config — same color, same role:
+# marking a ref name so it doesn't blend into surrounding prose).
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-  _ok=$'\033[32m'; _warn=$'\033[33m'; _dim=$'\033[2m'; _off=$'\033[0m'
+  _ok=$'\033[32m'; _warn=$'\033[33m'; _dim=$'\033[2m'; _branch=$'\033[36m'; _off=$'\033[0m'
 else
-  _ok=''; _warn=''; _dim=''; _off=''
+  _ok=''; _warn=''; _dim=''; _branch=''; _off=''
 fi
 step() { printf '%s✓%s %s\n' "$_ok" "$_off" "$1"; }
 warn() { printf '%s!%s %s\n' "$_warn" "$_off" "$1" >&2; }
