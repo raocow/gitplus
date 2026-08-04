@@ -21,6 +21,7 @@ git-pr \- list your open pull requests, check one out, or merge one or more
 [\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 [\fB\-\-method\fR \fIMETHOD\fR]
+[\fB\-s\fR|\fB\-m\fR|\fB\-r\fR]
 .br
 .B git pr
 [\fB\-h\fR|\fB\-\-help\fR]
@@ -220,8 +221,42 @@ though the PR is genuinely mergeable.
 The merge method defaults to the repository's own default merge method
 (from
 .BR "gh repo view" ),
-overridable with
-.BR \-\-method .
+overridable for the whole run with
+.BR \-\-method ,
+and per pull request with
+.BR \-s / \-\-squash ,
+.BR \-m / \-\-merge
+and
+.BR \-r / \-\-rebase
+\(em the same spellings
+.B "gh pr merge"
+uses.
+.PP
+A per-PR method flag applies
+.BR BACKWARD ,
+to every id to its left that no other method flag has already claimed.
+Equivalently: each id takes the method of the nearest method flag to its
+.BR RIGHT ,
+and an id with none uses the default. So
+.PP
+.RS
+.B git pr merge 12-31 \-\-merge 42 43-51 \-s
+.RE
+.PP
+merges #12-31 with a merge commit and squashes #42 and #43-51:
+.B \-s
+claims 42 and 43-51 and cannot reach past the
+.B \-\-merge
+that already claimed 12-31. Ids after the last method flag have nothing to
+their right and take the default.
+.B \-x
+composes with this: a method flag ends an
+.B \-x
+run like any other flag, and only ever claims targets, never excludes.
+.B \-\-dry\-run
+lists the method chosen for each pull request, so a mixed run can always be
+checked before it acts.
+.PP
 Branches are never deleted after merging \(em run
 .BR git-sweep (1)
 afterward for that.
@@ -260,7 +295,16 @@ preview the plan without changing anything.
 With
 .BR "git pr merge" ,
 .IR merge ", " squash ", or " rebase ,
-overriding the repository's default merge method.
+overriding the repository's default merge method for the whole run.
+.TP
+.BR \-s ", " \-\-squash ", " \-m ", " \-\-merge ", " \-r ", " \-\-rebase
+With
+.BR "git pr merge" ,
+set the merge method for individual pull requests rather than the whole run.
+Applies backward, to every id to its left not already claimed by another
+method flag \(em see
+.B DESCRIPTION
+above.
 .TP
 .BR \-h ", " \-\-help
 Show usage and exit.
