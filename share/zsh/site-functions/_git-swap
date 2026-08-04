@@ -1,0 +1,18 @@
+#autoload
+#
+# Completion for `git swap` — the two things it actually takes: real branches
+# and real worktree names (plus '.'/'@' for the current branch). Both groups
+# are offered together since either is a valid way to name the same target.
+# Flags only surface once you type a leading '-', so a bare TAB leads with
+# the targets, which is the point of the command.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  _message -r 'not inside a git repository'; return
+fi
+if [[ $PREFIX == -* ]]; then
+  _alternative 'flags:Flag:(-h --help)'
+  return
+fi
+_alternative \
+  'worktrees:Worktree:_gitplus_worktree_names' \
+  'branches:Branch:_gitplus_branch_names' \
+  'current:Current branch:(. @)'

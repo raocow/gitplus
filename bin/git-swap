@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+#
+# git-swap — check out a branch here, freeing it from another worktree first.
+#
+# A branch can only ever be checked out in one worktree at a time (a hard
+# git rule). If the target is already checked out somewhere else, this detaches
+# that OTHER worktree's HEAD (safe — doesn't touch its working tree at all,
+# just stops it holding the branch name) and then checks the branch out right
+# here, in the current worktree. No cd, no shell integration needed — this
+# operates entirely in the current directory, like any other git-* command.
+#
+# The argument can be a branch name, a WORKTREE name (that worktree's own
+# directory name, or its full path), a PR number, a URL, or '.'/'@' (the
+# current branch). Addressing by worktree matters because the thing you
+# remember is usually "the modloop worktree", not which branch is sitting in
+# it — which is often exactly what you were trying to look up. A branch name
+# wins if a branch and a worktree share the same name.
+#
+# Usage:
+#   git swap <branch|worktree|PR#|url|.|@>   check it out here, freeing it
+#                                            from another worktree if needed
+#   git swap -h                              show this help
+#
+set -euo pipefail
+
+# Resolve this script's real location (following symlinks — it's installed as
+# one) to find lib/gitplus-common.sh, shared across the git-* tools:
+# require_git_repo(), branch_in_worktree_named() and
+# free_branch_from_other_worktree() here.
+_src="${BASH_SOURCE[0]}"
+while [ -h "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
+
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+git swap — check out a branch here, freeing it from another worktree first.
+
+If the target is already checked out in another worktree, that's normally a
+hard stop (a branch can only be checked out in one worktree at a time) — `git
+pr <id>`/`git sync <id>` just refuse and tell you where it is. `git swap`
+instead detaches that OTHER worktree's HEAD (safe: doesn't touch its working
+tree, just frees the branch name) and checks the branch out right here.
+
+The argument can be a branch name, a WORKTREE name (its directory name or
+full path), a PR number, a URL, or '.'/'@' (the current branch). Naming the
+worktree is often what you actually remember — the branch inside it is the
+thing you were trying to look up. A branch name wins if both match.
+
+Usage:
+  git swap <branch|worktree|PR#|url|.|@>   check it out here
+  git swap -h                              show this help
+EOF
+    exit 0 ;;
+esac
+
+require_git_repo "git swap"
+
+id="${1:-}"
+[ -z "$id" ] && { echo "git swap: specify a branch, worktree, or PR number" >&2; exit 2; }
+
+branch="$id"
+
+# '.'/'@' means the current branch (same convention as git pr/git sync).
+if [ "$branch" = "." ] || [ "$branch" = "@" ]; then
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+fi
+
+# A PR number or URL resolves to its head branch via `gh`. Falls through to
+# treating the original token as a literal branch name if `gh` isn't
+# available or the lookup fails (offline, no such PR) — same fallback
+# posture as git-sync's resolve_target().
+if printf '%s' "$branch" | grep -qE '^[0-9]+$|://'; then
+  resolved="$(gh pr view "$branch" --json headRefName --jq '.headRefName' 2>/dev/null || true)"
+  [ -n "$resolved" ] && branch="$resolved"
+fi
+
+# Not a branch, but the name of a worktree? Use whatever branch is checked out
+# there. Deliberately only after the branch check, so a real branch of that
+# name always wins and this can't quietly retarget an existing name.
+if ! git show-ref --verify --quiet "refs/heads/$branch" \
+   && ! git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+  wt_branch="$(branch_in_worktree_named "$branch" 2>/dev/null || true)"
+  if [ -n "$wt_branch" ]; then
+    step "'$branch' is a worktree ${_dim}(holding $wt_branch)${_off}"
+    branch="$wt_branch"
+  fi
+fi
+
+current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [ "$branch" = "$current" ]; then
+  step "already on $branch"
+  exit 0
+fi
+
+free_branch_from_other_worktree "$branch" || exit 1
+
+if git switch --quiet "$branch" 2>/dev/null; then
+  step "switched to $branch"
+  exit 0
+fi
+
+# Not a local branch (yet) — try creating one tracking origin's, same as
+# git-sync's "named target that isn't local yet" fallback.
+if git switch --quiet -c "$branch" --track "origin/$branch" >/dev/null 2>&1; then
+  step "switched to $branch ${_dim}(new, tracking origin/$branch)${_off}"
+  exit 0
+fi
+
+echo "git swap: couldn't check out '$branch' — no such branch, worktree, or PR (try 'git pr $id' if it's a PR)" >&2
+exit 1

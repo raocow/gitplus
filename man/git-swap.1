@@ -1,11 +1,11 @@
-.TH GIT-WT 1 "2026-07-29" "gitplus" "gitplus Manual"
+.TH GIT-SWAP 1 "2026-07-29" "gitplus" "gitplus Manual"
 .SH NAME
-git-wt \- check out a branch here, freeing it from another worktree first
+git-swap \- check out a branch here, freeing it from another worktree first
 .SH SYNOPSIS
-.B git wt
+.B git swap
 .RI ( BRANCH | PR# | URL |.|@)
 .br
-.B git wt
+.B git swap
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 A branch can only ever be checked out in one worktree at a time (a hard git
@@ -14,7 +14,7 @@ rule) \(em normally a hard stop:
 and
 .B "git sync"
 just refuse and report where the branch already is.
-.B git wt
+.B git swap
 instead frees it: it detaches the
 .I other
 worktree's HEAD at its current commit (safe \(em doesn't touch that
@@ -41,12 +41,12 @@ branch is checked out elsewhere just works instead of refusing.
 Show usage and exit.
 .SH EXAMPLES
 .TP
-.B git wt spec-first
+.B git swap spec-first
 Free
 .I spec-first
 from wherever it's checked out and switch to it here.
 .TP
-.B git wt 132
+.B git swap 132
 Same, but naming a PR number instead of its head branch.
 .SH SEE ALSO
 .BR git-sync (1),
