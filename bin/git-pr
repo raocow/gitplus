@@ -5,6 +5,8 @@
 #   git pr                list your open PRs in this repo, as "<url> -- <title>"
 #   git pr --no-title     just the URLs, one per line (easy to pipe)   [-nt]
 #   git pr --copy         also copy the listing to the clipboard         [-c]
+#   git pr --global       every open PR under every authed gh account,
+#                         across all repos — works outside a repo too   [-g]
 #   git pr <n|branch>     check out that PR's branch, updated to the PR's latest
 #   git pr list <ids...>  show title/link for specific PR(s) instead of
 #                         checking out — any count, any author, any state
@@ -95,6 +97,8 @@
 # Usage:
 #   git pr                          list open PRs you authored ("<url> -- <title>")
 #   git pr -nt                      list them as bare URLs (--no-title)
+#   git pr -g                       every open PR under EVERY authed gh account,
+#                                   across all repos (--global; works anywhere)
 #   git pr <n|branch>                check out a PR by number, branch name, or URL
 #   git pr <ids...>                 (2+, or -x, or a range) list exactly those
 #                                   PRs instead — any author, any state
@@ -126,6 +130,10 @@ git pr — list your open PRs, check one out, or merge one or more.
   git pr -nt                  list them as bare URLs (--no-title)
   git pr -c                   also copy the listing to the clipboard (--copy;
                               works with list/checkout-multi/-nt, not merge)
+  git pr -g                   every open PR under EVERY gh account you're
+                              logged into, across all repos (--global).
+                              Works outside a repo. Listing only — no ids,
+                              no -x, not with merge.
   git pr <n|branch>           check out that PR (by number, branch name, or
                               URL), updated to the PR's latest
   git pr list <ids...>        show title/link for specific PR(s) instead of
@@ -173,6 +181,7 @@ EOF
 id=""
 notitle=0
 copy=0
+global=0
 subcmd=""
 all=0
 dry=0
@@ -191,6 +200,7 @@ while [ $# -gt 0 ]; do
     -h|--help) usage; exit 0 ;;
     -nt|--no-title) notitle=1; in_exclude=0 ;;
     -c|--copy) copy=1; in_exclude=0 ;;
+    -g|--global) global=1; in_exclude=0 ;;
     -a|--all) all=1; in_exclude=0 ;;
     -n|--dry-run) dry=1; in_exclude=0 ;;
     -x|--exclude) in_exclude=1 ;;
@@ -202,6 +212,15 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+if [ "$global" = 1 ]; then
+  if [ "$subcmd" = "merge" ]; then
+    echo "git pr: -g/--global is for listing, not merging — merging across every repo you have access to isn't something a single flag should do" >&2; exit 2
+  fi
+  if [ "${#raw_targets[@]}" -gt 0 ] || [ "${#raw_excludes[@]}" -gt 0 ]; then
+    echo "git pr: -g/--global lists everything and takes no ids (or -x)" >&2; exit 2
+  fi
+fi
 
 if [ "$subcmd" = "merge" ]; then
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
@@ -220,6 +239,67 @@ else
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
     echo "git pr: can't combine --all with specific PRs" >&2; exit 2
   fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# -g/--global: every open PR you have anywhere, under every gh account you're
+# logged into — not just the active one, and not scoped to a repo.
+#
+# Deliberately before require_git_repo: this is the one form that isn't about
+# the repo you're standing in, so it has to work from anywhere. It's also the
+# answer to a real confusion — with per-directory identities, a plain
+# `git pr` showing nothing only means the ACTIVE account has nothing here,
+# which looks identical to "I have no work in flight".
+#
+# Each account is queried with its own token via GH_TOKEN for that one call,
+# never `gh auth switch` — that setting is machine-wide and switching it
+# would yank the identity out from under every other terminal and agent on
+# the box.
+# ══════════════════════════════════════════════════════════════════════════
+if [ "$global" = 1 ]; then
+  require_gh "git pr"
+  accounts="$(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p')"
+  if [ -z "$accounts" ]; then
+    echo "git pr: no accounts logged in to gh (try: gh auth login)" >&2; exit 1
+  fi
+  rows=""
+  for acct in $accounts; do
+    atok="$(gh auth token --user "$acct" 2>/dev/null || true)"
+    [ -n "$atok" ] || continue
+    arows="$(GH_TOKEN="$atok" gh search prs --author "@me" --state open --limit 100 \
+      --json number,url,title,repository \
+      --jq '.[] | "\(.repository.nameWithOwner)\t\(.number)\t\(.url)\t\(.title)"' 2>/dev/null || true)"
+    [ -n "$arows" ] || continue
+    # Tag each row with the account it came from, so a mixed list says which
+    # identity owns what — the whole point of looking across accounts.
+    while IFS= read -r r; do
+      [ -n "$r" ] && rows="$rows$r	$acct
+"
+    done <<EOF
+$arows
+EOF
+  done
+
+  listing="$(printf '%s' "$rows" | sed '/^$/d' \
+    | sort -t "$(printf '\t')" -k1,1 -k2,2n \
+    | while IFS=$'\t' read -r repo num url title acct; do
+        line="$url"
+        [ "$notitle" = 1 ] || line="$url -- $title"
+        [ "$notitle" = 1 ] || line="$line ${_dim}($acct)${_off}"
+        echo "$line"
+      done)"
+
+  if [ -n "$listing" ]; then
+    printf '%s\n' "$listing"
+    if [ "$copy" = 1 ]; then
+      printf '%s\n' "$listing" | pbcopy
+      printf '%s✓%s %s\n' "$_ok" "$_off" "copied to clipboard" >&2
+    fi
+  else
+    printf 'no open PRs under any gh account %s(%s)%s\n' \
+      "$_dim" "$(printf '%s' "$accounts" | tr '\n' ' ' | sed 's/ $//')" "$_off"
+  fi
+  exit 0
 fi
 
 require_git_repo "git pr"
@@ -646,8 +726,15 @@ EOF
     # (e.g. an unrelated identity that's never authored anything in this
     # repo). Naming who was actually queried turns that ambiguity into an
     # immediate, checkable fact instead of a guess.
+    #
+    # Deliberately NOT warn(): "you have no open PRs" is the correct ANSWER to
+    # the question asked, not a problem. Printing it with a ! on stderr made
+    # the ordinary case (just merged everything) look like an auth failure —
+    # reported as exactly that. The account name stays, in dim, so a genuinely
+    # wrong identity is still obvious without dressing up a normal result as
+    # an error.
     me="$(gh api user --jq .login 2>/dev/null || echo '?')"
-    warn "no open PRs authored by $me in this repo — check 'gh auth status' if that's not who you expected"
+    printf 'no open PRs in this repo %s(authored by %s)%s\n' "$_dim" "$me" "$_off"
   fi
   if [ "$copy" = 1 ] && [ -n "$listing" ]; then
     printf '%s\n' "$listing" | pbcopy
