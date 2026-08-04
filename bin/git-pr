@@ -646,8 +646,15 @@ EOF
     # (e.g. an unrelated identity that's never authored anything in this
     # repo). Naming who was actually queried turns that ambiguity into an
     # immediate, checkable fact instead of a guess.
+    #
+    # Deliberately NOT warn(): "you have no open PRs" is the correct ANSWER to
+    # the question asked, not a problem. Printing it with a ! on stderr made
+    # the ordinary case (just merged everything) look like an auth failure —
+    # reported as exactly that. The account name stays, in dim, so a genuinely
+    # wrong identity is still obvious without dressing up a normal result as
+    # an error.
     me="$(gh api user --jq .login 2>/dev/null || echo '?')"
-    warn "no open PRs authored by $me in this repo — check 'gh auth status' if that's not who you expected"
+    printf 'no open PRs in this repo %s(authored by %s)%s\n' "$_dim" "$me" "$_off"
   fi
   if [ "$copy" = 1 ] && [ -n "$listing" ]; then
     printf '%s\n' "$listing" | pbcopy
