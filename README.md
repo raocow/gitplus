@@ -165,6 +165,7 @@ git sync [<ids...>] [-x|--exclude <ids...>] [-a|--all] [-n|--dry-run] [-b|--base
 git pr                            list your open PRs ("<url> -- <title>")
 git pr -nt                        list them as bare URLs (--no-title)
 git pr -c                         also copy the listing to the clipboard (--copy)
+git pr -g                         every open PR, every authed gh account (--global)
 git pr <n|branch|url|.|@>         check out that PR, updated to its latest
 git pr list <id...>               show title/link instead of checking out
 git pr merge <id...>              merge the given PR(s)
@@ -179,6 +180,14 @@ Requires the GitHub CLI (`gh`).
   bare URLs, one per line, for piping. `-c`/`--copy` also copies the listing
   to the clipboard — works with any listing form (`list`, checkout-multi,
   `-nt`), not `merge`.
+- **List globally** with `-g`/`--global`: every open PR you have anywhere,
+  under **every** gh account you're logged into — not just the active one,
+  and not scoped to a repo, so it works outside one too. Each row is tagged
+  with the account that owns it. This exists because with per-directory
+  identities a plain `git pr` showing nothing only means the *active* account
+  has nothing *here*, which looks identical to having no work in flight.
+  Listing only: no ids, no `-x`, not valid with `merge`. Each account is
+  queried with its own token, so it never touches `gh`'s active account.
 - **Check out** a PR with its number, head branch, URL, or `.`/`@` (the
   branch you're on) — this runs `gh pr checkout`, which creates the branch or
   fast-forwards an existing one, so you're never on a stale copy. Falls back
