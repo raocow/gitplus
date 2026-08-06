@@ -94,7 +94,7 @@ page (installed to `share/man/man1` by `install.sh` and by Homebrew).
 ### `git sweep`
 
 ```
-git sweep [<branch>...] [-f|--force] [-n|--dry-run] [-b|--base <name>]
+git sweep [<branch>...] [-r|--remote] [-l|--local] [-f|--force] [-n|--dry-run] [-b|--base <name>]
 ```
 
 - Fetches first and compares against the base's **remote tip**
@@ -109,6 +109,15 @@ git sweep [<branch>...] [-f|--force] [-n|--dry-run] [-b|--base <name>]
 - Naming one or more branches sweeps just those instead of the whole repo —
   same safety rule (skipped unless merged, unless `-f`). Refuses to name the
   base or current branch.
+- **Local by default.** `-r`/`--remote` sweeps branches on **origin** instead,
+  under the same merged-into-base rule (judged against `origin/<branch>`,
+  since a local copy can be stale or missing entirely). `-l`/`--local` is that
+  default spelled out, and `-rl` does both — short flags bundle. Remote
+  deletes go out as one push rather than one per branch.
+- Deleting on origin is **shared state**, so `-n` prints it as its own
+  section, and `-rf` — which force-deletes *unmerged* branches from the remote
+  — is the one combination where a mistake affects everyone rather than being
+  recoverable from your own reflog. Preview it.
 
 ### `git wsweep`
 
