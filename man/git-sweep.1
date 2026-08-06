@@ -4,6 +4,8 @@ git-sweep \- delete local branches already merged into the base branch
 .SH SYNOPSIS
 .B git sweep
 .RI [ BRANCH " ...]"
+[\fB\-r\fR|\fB\-\-remote\fR]
+[\fB\-l\fR|\fB\-\-local\fR]
 [\fB\-f\fR|\fB\-\-force\fR]
 [\fB\-b\fR|\fB\-\-base\fR \fINAME\fR]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
@@ -33,6 +35,36 @@ is given. Refuses to name the base or the current branch.
 .TP
 .I BRANCH " ..."
 Sweep just the given branch(es) instead of the whole repo.
+.TP
+.BR \-r ", " \-\-remote
+Sweep branches on
+.I origin
+instead of local ones, under the same merged-into-base rule \(em judged
+against
+.IR origin/<branch> ,
+since the local copy may be stale or absent entirely. Deletes are batched
+into a single push, falling back to one at a time only if the batch fails,
+so one protected branch cannot take the whole sweep down with it.
+.B "This is shared state:"
+combined with
+.B \-\-force
+it deletes
+.B unmerged
+branches from the remote, where a mistake affects everyone rather than being
+recoverable from your own reflog. Preview with
+.B \-n
+first.
+.TP
+.BR \-l ", " \-\-local
+Sweep local branches \(em the default, spelled out. Given with
+.B \-r
+.RB ( "or as " \-rl ),
+both sides are swept. The value-less short flags bundle, so
+.BR \-rln ,
+.B "\-r \-l \-n"
+and
+.B "\-rl \-n"
+are the same thing.
 .TP
 .BR \-f ", " \-\-force
 Target every local branch except the base and the current one and force-delete
