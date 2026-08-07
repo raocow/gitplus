@@ -17,6 +17,8 @@
 #   git pr merge --all    merge every mergeable PR you authored   [-a]
 #   git pr close <ids...> close specific PR(s) without merging — same id
 #                         grammar as merge; --all closes all of yours   [-a]
+#   git pr unmerge <ids...>  revert already-merged PR(s) by opening a revert
+#                         PR for each (via gh pr revert)
 #   git pr ... -x <ids...>   exclude PR(s) from any of the above   [--exclude]
 #
 # The checkout/list argument (and each merge argument) can be a PR number, a
@@ -108,7 +110,7 @@
 # over a script, so a custom `git-switch` could never run. A branch literally
 # named "merge" can't be checked out with `git pr merge` for the same reason
 # `merge` is claimed as a subcommand — use `git pr merge merge` if you must.
-# Same goes for "list" and "close".)
+# Same goes for "list", "close" and "unmerge".)
 #
 # Usage:
 #   git pr                          list open PRs you authored ("<url> -- <title>")
@@ -122,8 +124,9 @@
 #   git pr merge --all              merge every mergeable PR you authored (-a)
 #   git pr close <ids...>           close the given PR(s) without merging;
 #                                   --all closes every open PR you authored
+#   git pr unmerge <ids...>         revert merged PR(s) — opens a revert PR
 #   git pr ... -x <ids...>          exclude PR(s) (--exclude; also takes ranges)
-#   git pr merge|close ... -n       preview instead (--dry-run)
+#   git pr merge|close|unmerge ... -n   preview instead (--dry-run)
 #   git pr merge ... --method squash|merge|rebase   default method for the run
 #   git pr merge <ids> -s|-m|-r     method for just those ids (--squash/--merge/
 #                                   --rebase; claims the ids to its left)
@@ -171,10 +174,13 @@ git pr — list your open PRs, check one out, or merge one or more.
                               grammar as merge (numbers, branches, URLs,
                               ranges, ./@)
   git pr close --all          close every open PR YOU authored (-a)
+  git pr unmerge <ids...>     revert already-merged PR(s): opens a revert PR
+                              for each, which you then merge to undo it
   git pr ... -x <ids>         exclude PR(s) from any of the above (--exclude;
                               also takes ranges — everything after -x is
                               excluded until the next flag)
-  git pr merge|close ... -n   preview instead: show the plan, change nothing
+  git pr merge|close|unmerge ... -n
+                              preview instead: show the plan, change nothing
   git pr -h                   show this help
 
 Uses the GitHub CLI (gh). Checkout falls back to refs/pull/<n>/head for deleted
@@ -245,7 +251,8 @@ _claim_pending() {  # _claim_pending <method>
 # `--all`, `git pr list <ids...>`, `git pr close <ids...>`.
 if [ "${1:-}" = "merge" ]; then subcmd="merge"; shift;
 elif [ "${1:-}" = "list" ]; then subcmd="list"; shift;
-elif [ "${1:-}" = "close" ]; then subcmd="close"; shift; fi
+elif [ "${1:-}" = "close" ]; then subcmd="close"; shift;
+elif [ "${1:-}" = "unmerge" ]; then subcmd="unmerge"; shift; fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -298,6 +305,19 @@ elif [ "$subcmd" = "close" ]; then
   fi
   if [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
     echo "git pr close: merge-method flags only apply to 'git pr merge'" >&2; exit 2
+  fi
+elif [ "$subcmd" = "unmerge" ]; then
+  # No --all here on purpose. "Revert every PR I ever merged" has no sane
+  # reading, and unlike close (reopenable) this puts new commits on the base
+  # branch — naming what you want reverted should be deliberate.
+  if [ "$all" = 1 ]; then
+    echo "git pr unmerge: no --all — name the PR(s) to revert explicitly" >&2; exit 2
+  fi
+  if [ "${#raw_targets[@]}" -eq 0 ]; then
+    echo "git pr unmerge: specify the merged PR(s) to revert (number, branch, or URL — 'NNN-MMM' for a range)" >&2; exit 2
+  fi
+  if [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
+    echo "git pr unmerge: merge-method flags only apply to 'git pr merge'" >&2; exit 2
   fi
 else
   # --all is also valid here (explicitly "all my open PRs", same meaning as
@@ -840,6 +860,91 @@ if [ "$subcmd" = "close" ]; then
   else
     echo
     echo "Closed $closed; skipped (${#skipped[@]}):"
+    for s in "${skipped[@]}"; do echo "  $s"; done
+  fi
+  exit 0
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# git pr unmerge: revert already-merged PR(s), by opening a revert PR each.
+#
+# Delegates to `gh pr revert`, which is the right call rather than doing the
+# revert locally: GitHub knows how each PR was actually merged, and the three
+# methods need genuinely different reverts — a merge commit needs `-m 1`, a
+# squash is one commit, and a rebase is N separate commits with no single
+# commit to undo. Reimplementing that guesswork locally would get the rebase
+# case quietly wrong. Going through GitHub also means the revert lands as a
+# reviewable PR that respects branch protection, instead of pushing straight
+# to the base branch.
+#
+# Resolution here looks for MERGED PRs, not OPEN ones — the opposite of every
+# other subcommand, since reverting something still open is a contradiction.
+# ══════════════════════════════════════════════════════════════════════════
+if [ "$subcmd" = "unmerge" ]; then
+  skipped=()
+  exclude_nums=""
+  for xid in ${exclude_ids[@]+"${exclude_ids[@]}"}; do
+    xn="$(gh pr view "$xid" --json number --jq '.number' 2>/dev/null || true)"
+    [ -n "$xn" ] && exclude_nums="$exclude_nums $xn"
+  done
+
+  nums=""; seen_nums=""
+  for uid in ${merge_ids[@]+"${merge_ids[@]}"}; do
+    info="$(gh pr view "$uid" --json number,state,title --jq '"\(.number)\t\(.state)\t\(.title)"' 2>/dev/null || true)"
+    if [ -z "$info" ]; then skipped+=("$uid -- couldn't resolve to a PR"); continue; fi
+    n="${info%%$'\t'*}"; rest="${info#*$'\t'}"
+    st="${rest%%$'\t'*}"; t="${rest#*$'\t'}"
+    if [ "$st" != "MERGED" ]; then
+      # An open PR should be closed, not reverted; a closed one never landed.
+      skipped+=("#$n $t -- not merged (state: $st)")
+      continue
+    fi
+    case " $seen_nums " in *" $n "*) continue ;; esac
+    seen_nums="$seen_nums $n"
+    case " $exclude_nums " in *" $n "*) skipped+=("#$n -- excluded"); continue ;; esac
+    nums="$nums $n"
+  done
+
+  if [ -z "$nums" ]; then
+    echo "git pr unmerge: none of the given PR(s) are merged (or all were excluded)."
+    if [ "${#skipped[@]}" -gt 0 ]; then
+      echo "Skipped:"; for s in "${skipped[@]}"; do echo "  $s"; done
+    fi
+    exit 0
+  fi
+
+  if [ "$dry" = 1 ]; then
+    echo "Dry run — nothing was changed. Would open a revert PR for:"
+    for n in $nums; do
+      t="$(gh pr view "$n" --json title --jq '.title' 2>/dev/null || true)"
+      echo "  #$n ${_dim}($t)${_off}"
+    done
+    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in "${skipped[@]}"; do echo "  $s"; done; }
+    echo
+    echo "Run without --dry-run to actually open them."
+    exit 0
+  fi
+
+  reverted=0
+  for n in $nums; do
+    t="$(gh pr view "$n" --json title --jq '.title' 2>/dev/null || true)"
+    if out="$(gh pr revert "$n" 2>&1)"; then
+      # gh prints the new PR's URL; surface it, since the revert isn't applied
+      # until that PR is merged and you'll want to go land it.
+      url="$(printf '%s' "$out" | grep -o 'https://[^ ]*' | tail -1)"
+      step "revert PR opened for #$n ${_dim}($t)${_off}${url:+ ${_branch}$url${_off}}"
+      reverted=$((reverted + 1))
+    else
+      warn "couldn't revert #$n — ${out##*$'\n'}"
+      skipped+=("#$n $t -- revert failed: ${out##*$'\n'}")
+    fi
+  done
+
+  if [ "${#skipped[@]}" -eq 0 ]; then
+    echo "Opened $reverted revert PR(s) — merge them to actually undo the change."
+  else
+    echo
+    echo "Opened $reverted; skipped (${#skipped[@]}):"
     for s in "${skipped[@]}"; do echo "  $s"; done
   fi
   exit 0

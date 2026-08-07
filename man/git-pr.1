@@ -1,6 +1,6 @@
 .TH GIT-PR 1 "2026-07-22" "gitplus" "gitplus Manual"
 .SH NAME
-git-pr \- list your open pull requests, check one out, or merge or close one or more
+git-pr \- list, check out, merge, close, or revert pull requests
 .SH SYNOPSIS
 .B git pr
 [\fB\-nt\fR|\fB\-\-no\-title\fR]
@@ -14,6 +14,12 @@ git-pr \- list your open pull requests, check one out, or merge or close one or 
 .B list
 .RI [ ID " ...]"
 [\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
+.br
+.B git pr
+.B unmerge
+.RI [ ID " ...]"
+[\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
 .br
 .B git pr
 .B close
@@ -301,6 +307,37 @@ reported without stopping the rest. It is also reversible \(em a closed PR can
 be reopened. Branches are left alone; use
 .BR git-sweep (1)
 for those.
+.SS "git pr unmerge: revert one or more merged pull requests"
+.B git pr unmerge
+.I ID
+.RI [ ID " ...]"
+reverts PR(s) that have already landed, by opening a
+.B revert pull request
+for each and printing its URL \(em merge that to actually undo the change.
+The same
+.I ID
+grammar and
+.B \-x
+/
+.B \-n
+behaviour as the other subcommands.
+.PP
+This delegates to
+.BR "gh pr revert" ,
+which is deliberate rather than reverting locally: GitHub knows how each PR
+was actually merged, and the three methods need genuinely different reverts
+\(em a merge commit needs
+.BR "\-m 1" ,
+a squash is a single commit, and a rebase is N separate commits with no one
+commit to undo \(em so reimplementing that locally would get the rebase case
+quietly wrong. It also means the revert arrives as something reviewable that
+respects branch protection, rather than a push straight to the base branch.
+.PP
+Only PRs in the
+.B MERGED
+state are accepted; an open PR should be closed, not reverted, and a closed
+one never landed. There is deliberately no
+.BR \-\-all .
 .SH OPTIONS
 .TP
 .BR \-nt ", " \-\-no\-title
