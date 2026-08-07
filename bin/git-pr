@@ -15,6 +15,8 @@
 #   git pr merge <ids...> merge specific PR(s) (number, branch, URL, or a
 #                         "NNN-MMM" range — all mixable)
 #   git pr merge --all    merge every mergeable PR you authored   [-a]
+#   git pr close <ids...> close specific PR(s) without merging — same id
+#                         grammar as merge; --all closes all of yours   [-a]
 #   git pr ... -x <ids...>   exclude PR(s) from any of the above   [--exclude]
 #
 # The checkout/list argument (and each merge argument) can be a PR number, a
@@ -105,7 +107,8 @@
 # (Named `git pr`, not `git switch`: git always prefers its built-in `switch`
 # over a script, so a custom `git-switch` could never run. A branch literally
 # named "merge" can't be checked out with `git pr merge` for the same reason
-# `merge` is claimed as a subcommand — use `git pr merge merge` if you must.)
+# `merge` is claimed as a subcommand — use `git pr merge merge` if you must.
+# Same goes for "list" and "close".)
 #
 # Usage:
 #   git pr                          list open PRs you authored ("<url> -- <title>")
@@ -117,8 +120,10 @@
 #                                   PRs instead — any author, any state
 #   git pr merge <n|branch|range>... merge the given PR(s); "824-830" is a range
 #   git pr merge --all              merge every mergeable PR you authored (-a)
+#   git pr close <ids...>           close the given PR(s) without merging;
+#                                   --all closes every open PR you authored
 #   git pr ... -x <ids...>          exclude PR(s) (--exclude; also takes ranges)
-#   git pr merge ... -n             preview instead (--dry-run)
+#   git pr merge|close ... -n       preview instead (--dry-run)
 #   git pr merge ... --method squash|merge|rebase   default method for the run
 #   git pr merge <ids> -s|-m|-r     method for just those ids (--squash/--merge/
 #                                   --rebase; claims the ids to its left)
@@ -162,10 +167,14 @@ git pr — list your open PRs, check one out, or merge one or more.
                               "824-830" range — all mixable), rebasing what
                               needs it, skipping what needs a human
   git pr merge --all          merge every mergeable PR YOU authored (-a)
+  git pr close <ids...>       close the given PR(s) without merging — same id
+                              grammar as merge (numbers, branches, URLs,
+                              ranges, ./@)
+  git pr close --all          close every open PR YOU authored (-a)
   git pr ... -x <ids>         exclude PR(s) from any of the above (--exclude;
                               also takes ranges — everything after -x is
                               excluded until the next flag)
-  git pr merge ... -n         preview instead: show the plan, change nothing
+  git pr merge|close ... -n   preview instead: show the plan, change nothing
   git pr -h                   show this help
 
 Uses the GitHub CLI (gh). Checkout falls back to refs/pull/<n>/head for deleted
@@ -232,10 +241,11 @@ _claim_pending() {  # _claim_pending <method>
   method_flagged=1
 }
 
-# `merge`/`list` are subcommands, not flags: `git pr merge <ids...>` / `--all`,
-# `git pr list <ids...>`.
+# `merge`/`list`/`close` are subcommands, not flags: `git pr merge <ids...>` /
+# `--all`, `git pr list <ids...>`, `git pr close <ids...>`.
 if [ "${1:-}" = "merge" ]; then subcmd="merge"; shift;
-elif [ "${1:-}" = "list" ]; then subcmd="list"; shift; fi
+elif [ "${1:-}" = "list" ]; then subcmd="list"; shift;
+elif [ "${1:-}" = "close" ]; then subcmd="close"; shift; fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -279,12 +289,22 @@ if [ "$subcmd" = "merge" ]; then
   if [ "$all" = 0 ] && [ "${#raw_targets[@]}" -eq 0 ]; then
     echo "git pr merge: specify PR(s) to merge (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
   fi
+elif [ "$subcmd" = "close" ]; then
+  if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
+    echo "git pr close: can't combine --all with specific PRs" >&2; exit 2
+  fi
+  if [ "$all" = 0 ] && [ "${#raw_targets[@]}" -eq 0 ]; then
+    echo "git pr close: specify PR(s) to close (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
+  fi
+  if [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
+    echo "git pr close: merge-method flags only apply to 'git pr merge'" >&2; exit 2
+  fi
 else
   # --all is also valid here (explicitly "all my open PRs", same meaning as
   # the implicit default when no targets are given) so its grammar mirrors
   # `git pr merge --all`; -n/--method/-s/-m/-r genuinely don't apply to listing.
   if [ "$dry" = 1 ] || [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
-    echo "git pr: --dry-run and the merge-method flags only apply to 'git pr merge'" >&2; exit 2
+    echo "git pr: --dry-run and the merge-method flags only apply to 'git pr merge' and 'git pr close'" >&2; exit 2
   fi
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
     echo "git pr: can't combine --all with specific PRs" >&2; exit 2
@@ -739,6 +759,88 @@ if [ "$subcmd" = "merge" ]; then
       echo "Merged ${#merged[@]}; unmergeable/skipped (${#skipped[@]}):"
       for s in "${skipped[@]}"; do echo "  $s"; done
     fi
+  fi
+  exit 0
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# git pr close: close specific PR(s), or --all of your open ones.
+#
+# Same id grammar as merge (number, branch, URL, "." / "@", NNN-MMM ranges,
+# -x to exclude) so the two read alike. Much simpler than merge, though:
+# there's no ordering to compute and nothing to rebase — closing is
+# independent per PR and reversible (reopen), which is also why --all is
+# offered here without the hand-wringing merge --all needs.
+# ══════════════════════════════════════════════════════════════════════════
+if [ "$subcmd" = "close" ]; then
+  skipped=()
+  exclude_nums=""
+  for xid in ${exclude_ids[@]+"${exclude_ids[@]}"}; do
+    xn="$(gh pr view "$xid" --json number --jq '.number' 2>/dev/null || true)"
+    [ -n "$xn" ] && exclude_nums="$exclude_nums $xn"
+  done
+
+  # --all is a broad sweep, so it's scoped to PRs YOU authored — closing
+  # someone else's isn't a sweep's call to make, same rule as merge --all.
+  # Named ids aren't scoped that way: naming one is being explicit.
+  nums=""; seen_nums=""
+  if [ "$all" = 1 ]; then
+    for n in $(gh pr list --state open --author "@me" --limit 200 --json number --jq '.[].number' 2>/dev/null || true); do
+      case " $exclude_nums " in *" $n "*) continue ;; esac
+      nums="$nums $n"
+    done
+    [ -n "$nums" ] || { echo "git pr close: no open PRs authored by you in this repo (after --exclude)."; exit 0; }
+  else
+    for cid in ${merge_ids[@]+"${merge_ids[@]}"}; do
+      n="$(gh pr view "$cid" --json number,state --jq 'select(.state == "OPEN") | .number' 2>/dev/null || true)"
+      if [ -z "$n" ]; then skipped+=("$cid -- couldn't resolve to an open PR"); continue; fi
+      case " $seen_nums " in *" $n "*) continue ;; esac
+      seen_nums="$seen_nums $n"
+      case " $exclude_nums " in *" $n "*) skipped+=("#$n -- excluded"); continue ;; esac
+      nums="$nums $n"
+    done
+    if [ -z "$nums" ]; then
+      echo "git pr close: none of the given PR(s) could be resolved (or all were excluded)."
+      if [ "${#skipped[@]}" -gt 0 ]; then
+        echo "Skipped:"; for s in "${skipped[@]}"; do echo "  $s"; done
+      fi
+      exit 0
+    fi
+  fi
+
+  if [ "$dry" = 1 ]; then
+    echo "Dry run — nothing was changed. Would close:"
+    for n in $nums; do
+      t="$(gh pr view "$n" --json title --jq '.title' 2>/dev/null || true)"
+      echo "  #$n ${_dim}($t)${_off}"
+    done
+    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in "${skipped[@]}"; do echo "  $s"; done; }
+    echo
+    echo "Run without --dry-run to actually close."
+    exit 0
+  fi
+
+  closed=0
+  for n in $nums; do
+    t="$(gh pr view "$n" --json title,headRefName,baseRefName \
+      --jq '"\(.title)\t\(.headRefName)\t\(.baseRefName)"' 2>/dev/null || true)"
+    title="${t%%$'\t'*}"; rest="${t#*$'\t'}"
+    head="${rest%%$'\t'*}"; base="${rest#*$'\t'}"
+    if err="$(gh pr close "$n" 2>&1)"; then
+      step "closed #$n ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
+      closed=$((closed + 1))
+    else
+      warn "couldn't close #$n — ${err##*$'\n'}"
+      skipped+=("#$n $title -- close failed: ${err##*$'\n'}")
+    fi
+  done
+
+  if [ "${#skipped[@]}" -eq 0 ]; then
+    echo "Closed all $closed."
+  else
+    echo
+    echo "Closed $closed; skipped (${#skipped[@]}):"
+    for s in "${skipped[@]}"; do echo "  $s"; done
   fi
   exit 0
 fi

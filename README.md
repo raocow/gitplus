@@ -81,7 +81,7 @@ on `fpath` and you can drop it.)
 | [`git sweep`](#git-sweep) | Delete local branches already merged into the base |
 | [`git wsweep`](#git-wsweep) | Remove worktrees (and their branches) already merged into the base |
 | [`git sync`](#git-sync) | Rebase branch(es) onto the base and push |
-| [`git pr`](#git-pr) | List, check out, or merge PRs |
+| [`git pr`](#git-pr) | List, check out, merge, or close PRs |
 | [`git new`](#git-new) | Create + switch to a branch, with short-name Tab-completion |
 | [`git haspr`](#git-haspr) | Check whether a branch already has a PR |
 | [`git done`](#git-done) | Switch back to base, fast-forward it, delete the branch you left |
@@ -179,6 +179,7 @@ git pr <n|branch|url|.|@>         check out that PR, updated to its latest
 git pr list <id...>               show title/link instead of checking out
 git pr merge <id...>              merge the given PR(s)
 git pr merge --all|-a             merge every mergeable PR YOU authored
+git pr close <id...>              close the given PR(s) without merging
 git pr ... -x|--exclude <id...>   exclude PR(s) from any of the above
 git pr merge ... -n|--dry-run     preview the merge plan, change nothing
 git pr merge <id...> -s|-m|-r     merge method for just those PRs
@@ -240,6 +241,13 @@ Requires the GitHub CLI (`gh`).
 
     `-n`/`--dry-run` lists the method chosen for each PR, so a mixed run is
     always checkable before it acts.
+- **Close**: `git pr close <id...>` closes PRs *without* merging them — same
+  id grammar as merge (numbers, branches, URLs, `NNN-MMM` ranges, `.`/`@`),
+  and `-x` works the same. `--all`/`-a` closes every open PR **you authored**,
+  same scoping rule as `merge --all`. `-n`/`--dry-run` previews.
+  Closing is per-PR and reversible (reopen), so there's no ordering to compute
+  and nothing to rebase — a failure on one PR is reported and the rest still
+  proceed. Branches are left alone; `git sweep` handles those.
 
 ### `git new`
 
