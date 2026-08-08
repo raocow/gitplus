@@ -113,6 +113,41 @@ worktree_path_for_branch() {
   return 1
 }
 
+# branch_in_worktree_named <name> — the branch checked out in the worktree
+# called <name>, where <name> is either the worktree's directory name or its
+# full path. Lets a command address a worktree the way you actually think of
+# it ("the modloop worktree") instead of requiring the branch name, which is
+# often the thing you're trying to look up in the first place. Prints nothing
+# and returns 1 if no worktree matches, or if the one that does is detached.
+branch_in_worktree_named() {
+  local want="$1" wantp="" wtpath="" line
+  # `git worktree list` reports PHYSICAL paths, so a path argument has to be
+  # resolved the same way before comparing: on macOS /tmp and /var are
+  # themselves symlinks (/private/tmp, /private/var), and an unresolved path
+  # under either would never match. Only attempted for something that looks
+  # like a path; a bare worktree name is matched by basename below.
+  case "$want" in
+    */*) [ -d "$want" ] && wantp="$(cd -P "$want" 2>/dev/null && pwd)" ;;
+  esac
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wtpath="${line#worktree }" ;;
+      "branch refs/heads/"*)
+        # Braces are load-bearing: && and || are equal-precedence and
+        # left-associative in shell, so without them the -n test would bind
+        # to the wrong side and change what this matches.
+        if [ "$wtpath" = "$want" ] \
+           || { [ -n "$wantp" ] && [ "$wtpath" = "$wantp" ]; } \
+           || [ "${wtpath##*/}" = "$want" ]; then
+          printf '%s\n' "${line#branch refs/heads/}"
+          return 0
+        fi
+        ;;
+    esac
+  done < <(git worktree list --porcelain)
+  return 1
+}
+
 # free_branch_from_other_worktree <branch> — if <branch> is checked out in a
 # worktree OTHER than the current one, detach that worktree's HEAD at its
 # current commit so the branch is free to check out here instead. Detaching

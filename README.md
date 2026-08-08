@@ -85,7 +85,7 @@ on `fpath` and you can drop it.)
 | [`git new`](#git-new) | Create + switch to a branch, with short-name Tab-completion |
 | [`git haspr`](#git-haspr) | Check whether a branch already has a PR |
 | [`git done`](#git-done) | Switch back to base, fast-forward it, delete the branch you left |
-| [`git wt`](#git-wt) | Check out a branch here, freeing it from another worktree first |
+| [`git swap`](#git-swap) | Check out a branch or worktree here, freeing it from another worktree first |
 | [`git release`](#git-release) | Tag the current commit and publish a GitHub release for it |
 
 Each takes `-h` for a short usage summary, or `--help` to open its full man
@@ -204,7 +204,7 @@ Requires the GitHub CLI (`gh`).
   to `refs/pull/<n>/head` for a merged/closed PR whose branch was deleted,
   or — offline — to a local branch stamped with the PR number (switched to
   as-is, not updated). If the branch is already checked out in another
-  worktree, it's freed from there first (see `git wt`) instead of refusing.
+  worktree, it's freed from there first (see `git swap`) instead of refusing.
 - **Inspect without checking out**: `git pr list <id...>` shows the
   title/link for any number of PRs, any author, any state. `.`/`@` works
   here too. (`git pr <id> <id>` — 2+ ids, a range, or `-x`, no `list` — does
@@ -269,24 +269,34 @@ landed or got closed before you create a duplicate. Prints the URL and state
 and exits 0 if found; prints a clear message and exits 1 otherwise, so it's
 usable in scripts: `git haspr || gh pr create`.
 
-### `git wt`
+### `git swap`
 
 ```
-git wt <branch|PR#|url|.|@>
+git swap <branch|worktree|PR#|url|.|@>
 ```
 
 A branch can only ever be checked out in **one worktree at a time** (a hard
 git rule) — normally a hard stop: `git pr <id>`/`git sync <id>` just refuse
-and tell you where it is. `git wt <id>` instead **frees it and checks it out
+and tell you where it is. `git swap <id>` instead **frees it and checks it out
 here**: it detaches the *other* worktree's HEAD at its current commit (safe —
 doesn't touch that worktree's working tree or uncommitted changes at all,
 just stops it holding the branch name) and switches to the branch in the
 current worktree. A purely local operation — no shell integration needed,
 since it never has to move you anywhere.
 
-The id can be a branch name, PR number, PR URL, or `.`/`@` (the current
-branch) — same grammar as `git pr`/`git sync`; a PR number/URL is resolved to
-its head branch via `gh` first. `git pr <id>` uses the same free-it-first
+The id can be a branch name, a **worktree name** (its directory name or full
+path), a PR number, a PR URL, or `.`/`@` (the current branch) — same grammar
+as `git pr`/`git sync` plus the worktree form. Naming the worktree is often
+what you actually remember; the branch inside it is the thing you were trying
+to look up. A branch name wins if a branch and a worktree share a name, and a
+detached worktree has no branch to find. A PR number/URL is resolved to its
+head branch via `gh` first.
+
+```
+git swap feature-dir     # whatever branch that worktree holds
+git swap modloop         # by branch name
+git swap 132             # by PR number
+``` `git pr <id>` uses the same free-it-first
 logic internally, so `git pr 132` also just works even when #132's branch is
 checked out elsewhere.
 

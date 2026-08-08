@@ -1,0 +1,18 @@
+#autoload
+#
+# Worktree directory names (the basename of each worktree path), as real
+# completion candidates — what `git swap` accepts alongside a branch name.
+# The current worktree is excluded: swapping to where you already are is a
+# no-op, so offering it is noise.
+#
+# Same compadd-in-a-real-subshell shape as _gitplus_branch_names, and for the
+# same reason (see that file): running the git pipeline unsubshelled inside a
+# completion widget deadlocks on job control.
+local here; here="$(git rev-parse --show-toplevel 2>/dev/null)"
+local -a names
+names=(${(f)"$(git worktree list --porcelain 2>/dev/null \
+  | sed -n 's#^worktree ##p' \
+  | while IFS= read -r p; do [[ "$p" != "$here" ]] && print -r -- "${p:t}"; done)"})
+(( $#names )) || return
+local expl
+_wanted worktrees expl 'Worktree' compadd -a names
