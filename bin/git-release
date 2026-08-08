@@ -139,20 +139,34 @@ case "$version" in
   *) echo "git release: '$version' doesn't look like vX.Y.Z" >&2; exit 2 ;;
 esac
 
-if git rev-parse --verify --quiet "refs/tags/$version" >/dev/null 2>&1; then
-  echo "git release: tag '$version' already exists" >&2
+# A tag that already exists but has no GitHub release yet means a previous
+# run tagged+pushed fine and then failed on the release step (e.g. a `gh`
+# scope/auth error) — resume by creating just the release, instead of a hard
+# "already exists" that leaves no way to retry without deleting the tag.
+tag_exists=0
+git rev-parse --verify --quiet "refs/tags/$version" >/dev/null 2>&1 && tag_exists=1
+if [ "$tag_exists" = 1 ] && gh release view "$version" >/dev/null 2>&1; then
+  echo "git release: '$version' already exists as both a tag and a GitHub release" >&2
   exit 1
 fi
 
 if [ "$dry" = 1 ]; then
   if [ "$notes_given" = 1 ]; then notes_desc="with the given notes"; else notes_desc="with auto-generated notes"; fi
-  echo "Would tag HEAD as $version${latest_tag:+ (latest: $latest_tag)}, push it, and create a GitHub release $notes_desc."
+  if [ "$tag_exists" = 1 ]; then
+    echo "Tag $version already exists — would create the GitHub release only, $notes_desc."
+  else
+    echo "Would tag HEAD as $version${latest_tag:+ (latest: $latest_tag)}, push it, and create a GitHub release $notes_desc."
+  fi
   exit 0
 fi
 
-git tag -a "$version" -m "$version"
-git push --quiet origin "$version"
-step "tagged and pushed $version"
+if [ "$tag_exists" = 1 ]; then
+  warn "tag '$version' already exists with no GitHub release for it — creating the release only"
+else
+  git tag -a "$version" -m "$version"
+  git push --quiet origin "$version"
+  step "tagged and pushed $version"
+fi
 
 if [ "$notes_given" = 1 ]; then
   gh release create "$version" --title "$version" --notes "$notes" >/dev/null
