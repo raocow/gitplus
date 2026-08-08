@@ -334,8 +334,15 @@ The bookend to `git pr`:
   a bare `git branch -d`, which checks a branch's own upstream when it has
   one, not the base — so a merely-*pushed* branch (true of anything that's
   ever had a PR) would pass regardless of whether it was ever merged,
-  silently dropping real work. Squash-merged branches still require
-  `-f`/`--force`: a squash isn't a literal ancestor of the base either.
+  silently dropping real work.
+- **Squash- and rebase-merged branches are handled too**, and have to be:
+  neither is an ancestor of the base (a squash is one new commit, a rebase
+  rewrites them), so the ancestor test alone would refuse every branch forever
+  in a squash-merging repo — the command never doing its job. When that test
+  says no, GitHub is asked whether a PR from this branch into **this** base was
+  merged. The base match is the point: a *stacked* PR merged into its parent
+  branch hasn't reached the base, and is still correctly refused. Needs `gh`;
+  offline it falls back to refusing, which is the safe direction.
 - The fast-forward is best-effort: skipped with a note if you're offline or
   local base has diverged (never a merge commit).
 - On a detached HEAD, it just switches back to base. Already on the base, it

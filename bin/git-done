@@ -13,10 +13,17 @@
 # mergedness against a branch's own upstream when it has one, not against the
 # base you're switching to — so a branch that's simply been pushed (true of
 # anything that's ever had a PR) passes -d's check regardless of whether it
-# was ever merged into base, silently dropping real work. Squash-merged PR
-# branches still require --force, same as before: a squash isn't a literal
-# ancestor of the base either. When you know the branch is done, pass --force
-# to delete it regardless.
+# was ever merged into base, silently dropping real work.
+#
+# Squash- and rebase-merged branches are handled too, and have to be: neither
+# is an ancestor of the base (a squash is one new commit, a rebase rewrites
+# them), so the ancestor test alone would refuse every branch forever in a
+# squash-merging repo — the command never doing its job. When that test says
+# no, GitHub is asked whether a PR from this branch into THIS base was
+# merged. The base match is the point: a stacked PR merged into its PARENT
+# branch hasn't reached the base, and is still correctly refused. Offline or
+# without gh it falls back to refusing, which is the safe direction; --force
+# still deletes regardless.
 #
 # On a detached HEAD there's nothing to delete, so it just switches back to base.
 # If you're already on the base, there's also nothing to delete — it just pulls
@@ -73,8 +80,11 @@ Safe by default: only deletes the branch you left if it's actually merged into
 the base — checked explicitly (git merge-base --is-ancestor), not via a bare
 `git branch -d` (which checks a branch's own upstream when it has one, not the
 base — so a merely-pushed branch would pass regardless of whether it was ever
-merged). Squash-merged branches still require --force: a squash isn't a
-literal ancestor of the base either.
+merged). Squash- and rebase-merged branches are handled as well: they aren't
+ancestors of the base, so when that test says no, GitHub is asked whether a
+PR from this branch into THIS base was merged — a stacked PR merged into its
+parent branch hasn't reached the base and is still refused. Needs gh;
+offline it falls back to refusing.
 
 Already on the base branch? There's nothing to delete, so it just pulls (fetch
 + fast-forward the base to origin).
@@ -166,10 +176,22 @@ fi
 # explicitly here (same fix already applied in git-sweep for a related
 # reason), and -D used either way, since by this point safety has already
 # been verified ourselves.
+#
+# The ancestor test alone isn't enough, though: a SQUASH- or rebase-merged
+# branch is never an ancestor of the base (a squash is one new commit, a
+# rebase rewrites them), so in a squash-merging repo it would refuse every
+# branch forever — the command's whole job, never done. So when the ancestor
+# test says no, ask GitHub whether a PR from this branch into THIS base was
+# merged; that catches squash/rebase without ever approving work that only
+# reached some intermediate branch. Offline or without gh, it just falls
+# through to the refusal, which is the safe direction.
 sha=$(git rev-parse --short "$current" 2>/dev/null || echo '?')
 if [ "$force" = 1 ] || git merge-base --is-ancestor "$current" "$base" 2>/dev/null; then
   git branch -D "$current" >/dev/null 2>&1
   step "deleted $current ${_dim}(was $sha)${_off}"
+elif pr_num="$(pr_merged_into "$current" "$base")"; then
+  git branch -D "$current" >/dev/null 2>&1
+  step "deleted $current ${_dim}(was $sha; squash-merged as #$pr_num)${_off}"
 else
   warn "kept $current — not fully merged into $base"
   printf '  %sif you are sure it is done (e.g. squash-merged): git branch -D %s%s\n' \

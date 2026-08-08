@@ -83,6 +83,45 @@ require_gh() {
     echo "$1: needs the GitHub CLI ('gh') — https://cli.github.com" >&2; exit 1; }
 }
 
+# pr_merged_into <branch> <base> — prints the number of a MERGED pull request
+# from <branch> into <base>, if there is one. Empty (and returns 1) otherwise.
+#
+# This exists because `git merge-base --is-ancestor` — the only honest LOCAL
+# test for "did this land" — says NO for a squash- or rebase-merged branch,
+# since a squash makes one brand-new commit and a rebase rewrites them all.
+# Neither leaves the branch tip anywhere in the base's history. In a repo that
+# squash-merges (GitHub's default for many teams), that means the ancestor
+# test alone can NEVER approve deleting a branch, no matter how thoroughly
+# merged it is. Asking GitHub is the authoritative answer.
+#
+# The --base filter is load-bearing, not decoration. A stacked PR is merged
+# into its PARENT branch, not into the base, so its work has not reached the
+# base at all — a plain "does a merged PR exist for this branch" check would
+# happily approve deleting work that never landed. That exact case has come
+# up here: a branch had a merged PR into an intermediate branch long before
+# it had one into main.
+pr_merged_into() {
+  local branch="$1" base="$2" n
+  command -v gh >/dev/null 2>&1 || return 1
+  n="$(gh pr list --head "$branch" --base "$base" --state merged --limit 1 \
+    --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+  [ -n "$n" ] || return 1
+  printf '%s\n' "$n"
+}
+
+# merged_pr_heads_into <base> — the head branch name of every merged PR into
+# <base>, one per line. The batch form of pr_merged_into, for callers that
+# have to judge many branches at once (git sweep): one API call regardless of
+# branch count, instead of one per branch, which in a squash-merging repo
+# would mean a network round trip for every branch in the repo. Prints
+# nothing if gh is unavailable, so callers degrade to the ancestor test.
+merged_pr_heads_into() {
+  local base="$1"
+  command -v gh >/dev/null 2>&1 || return 0
+  gh pr list --base "$base" --state merged --limit 200 \
+    --json headRefName --jq '.[].headRefName' 2>/dev/null || true
+}
+
 # worktree_path_for_branch <branch> — a branch can be checked out in at most
 # one worktree at a time (a hard git rule, not a limitation of these tools),
 # so any command that's about to check out/rebase-in-place a named branch

@@ -10,8 +10,14 @@
 # base's remote tip (verified with `git merge-base --is-ancestor`), so it can't
 # drop unmerged work. Unlike a bare `git branch -d` it isn't fooled by a stale
 # local base — `-d` rechecks against your current branch, which wrongly refuses
-# branches merged upstream when local <base> lags. Note: squash-merged branches
-# are NOT caught — a squash makes a new commit, so it isn't an ancestor.
+# branches merged upstream when local <base> lags.
+#
+# Squash- and rebase-merged branches ARE caught, despite not being ancestors
+# of the base: when the ancestor test says no, GitHub is asked whether a PR
+# from that branch into THIS base was merged (one API call for the whole
+# repo, not one per branch). Without that, a squash-merging repo could never
+# sweep anything. The --base match matters — a stacked PR merged into its
+# PARENT branch has not reached the base, and must not be swept.
 #
 # --force widens the net: it targets EVERY local branch (except the base and the
 # current one) and force-deletes with `git branch -D` — so it also clears
@@ -66,8 +72,10 @@ git sweep — delete local branches already merged into the base branch.
 
 Safe by default: only deletes branches already merged into the base's remote
 tip (verified with merge-base), so it never drops unmerged work — and unlike a
-bare `git branch -d` it isn't fooled by a stale local base. Squash-merged
-branches are NOT caught (a squash isn't an ancestor).
+bare `git branch -d` it isn't fooled by a stale local base. Squash- and
+rebase-merged branches ARE caught too: they aren't ancestors of the base, so
+GitHub is asked whether their PR was merged into it (needs gh; offline it
+falls back to the ancestor test only).
 
 --force targets EVERY local branch except the base and current one and deletes
 with `git branch -D` — clearing never-PR'd / squash-merged / unmerged branches
@@ -182,6 +190,24 @@ fi
 
 current=$(git rev-parse --abbrev-ref HEAD)
 
+# Branches whose PR was squash- or rebase-merged into the base. Those are NOT
+# ancestors of it (a squash is one new commit; a rebase rewrites them), so
+# `git branch --merged` never lists them and the ancestor test below always
+# says no — meaning in a squash-merging repo a safe sweep would never delete
+# anything at all. Fetched as one API call for the whole repo rather than one
+# per branch. Empty offline or without gh, in which case everything falls back
+# to the ancestor test, which is the safe direction. --force doesn't need this
+# (it isn't checking mergedness at all).
+squashed=" "
+if [ "$force" = 0 ]; then
+  while IFS= read -r _h; do
+    [ -n "$_h" ] && squashed="$squashed$_h "
+  done <<EOF
+$(merged_pr_heads_into "$base")
+EOF
+fi
+is_squash_merged() { case "$squashed" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
 rtargets=""   # remote branch names (bare, no origin/ prefix) to delete
 
 if [ "${#raw_targets[@]}" -gt 0 ]; then
@@ -225,7 +251,23 @@ else
     if [ "$force" = 1 ]; then
       list=$(git branch --format='%(refname:short)')
     else
+      # Ancestry-merged AND squash-merged: the latter are absent from
+      # --merged by construction, so they have to be added here or they'd
+      # never even be considered.
       list=$(git branch --merged "$mergeref" --format='%(refname:short)')
+      while IFS= read -r b; do
+        [ -z "$b" ] && continue
+        git show-ref --verify --quiet "refs/heads/$b" || continue
+        case "
+$list
+" in *"
+$b
+"*) ;; *) list="$list
+$b" ;;
+        esac
+      done <<EOF
+$(printf '%s' "$squashed" | tr ' ' '\n')
+EOF
     fi
     while IFS= read -r b; do
       [ -z "$b" ] && continue
@@ -289,7 +331,7 @@ if [ "$dry" = 1 ]; then
     else
       echo "Would delete LOCAL (merged into '$mergeref'):"
       for b in $targets; do
-        if git merge-base --is-ancestor "$b" "$mergeref"; then
+        if git merge-base --is-ancestor "$b" "$mergeref" || is_squash_merged "$b"; then
           echo "  $b"
         else
           echo "  $b ${_dim}(skip — not merged into $mergeref)${_off}"
@@ -305,7 +347,7 @@ if [ "$dry" = 1 ]; then
     else
       echo "Would delete on ORIGIN ${_warn}(shared state)${_off} (merged into '$mergeref'):"
       for b in $rtargets; do
-        if git merge-base --is-ancestor "origin/$b" "$mergeref"; then
+        if git merge-base --is-ancestor "origin/$b" "$mergeref" || is_squash_merged "$b"; then
           echo "  origin/$b"
         else
           echo "  origin/$b ${_dim}(skip — not merged into $mergeref)${_off}"
@@ -338,7 +380,7 @@ else
   # the *current* branch (local HEAD), which wrongly refuses branches merged
   # upstream when your local base is stale — the very case sweep exists to handle.
   for b in $targets; do
-    if git merge-base --is-ancestor "$b" "$mergeref"; then
+    if git merge-base --is-ancestor "$b" "$mergeref" || is_squash_merged "$b"; then
       _del "$b"
     else
       warn "skipped $b — not merged into $mergeref"
@@ -352,7 +394,7 @@ fi
 if [ -n "$rtargets" ]; then
   rdel=""
   for b in $rtargets; do
-    if [ "$force" = 1 ] || git merge-base --is-ancestor "origin/$b" "$mergeref"; then
+    if [ "$force" = 1 ] || git merge-base --is-ancestor "origin/$b" "$mergeref" || is_squash_merged "$b"; then
       rdel="$rdel $b"
     else
       warn "skipped origin/$b — not merged into $mergeref"
