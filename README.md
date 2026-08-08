@@ -81,7 +81,7 @@ on `fpath` and you can drop it.)
 | [`git sweep`](#git-sweep) | Delete local branches already merged into the base |
 | [`git wsweep`](#git-wsweep) | Remove worktrees (and their branches) already merged into the base |
 | [`git sync`](#git-sync) | Rebase branch(es) onto the base and push |
-| [`git pr`](#git-pr) | List, check out, or merge PRs |
+| [`git pr`](#git-pr) | List, check out, merge, close, or revert PRs |
 | [`git new`](#git-new) | Create + switch to a branch, with short-name Tab-completion |
 | [`git haspr`](#git-haspr) | Check whether a branch already has a PR |
 | [`git done`](#git-done) | Switch back to base, fast-forward it, delete the branch you left |
@@ -179,6 +179,8 @@ git pr <n|branch|url|.|@>         check out that PR, updated to its latest
 git pr list <id...>               show title/link instead of checking out
 git pr merge <id...>              merge the given PR(s)
 git pr merge --all|-a             merge every mergeable PR YOU authored
+git pr close <id...>              close the given PR(s) without merging
+git pr unmerge <id...>            revert merged PR(s) — opens a revert PR
 git pr ... -x|--exclude <id...>   exclude PR(s) from any of the above
 git pr merge ... -n|--dry-run     preview the merge plan, change nothing
 git pr merge <id...> -s|-m|-r     merge method for just those PRs
@@ -240,6 +242,22 @@ Requires the GitHub CLI (`gh`).
 
     `-n`/`--dry-run` lists the method chosen for each PR, so a mixed run is
     always checkable before it acts.
+- **Close**: `git pr close <id...>` closes PRs *without* merging them — same
+  id grammar as merge (numbers, branches, URLs, `NNN-MMM` ranges, `.`/`@`),
+  and `-x` works the same. `--all`/`-a` closes every open PR **you authored**,
+  same scoping rule as `merge --all`. `-n`/`--dry-run` previews.
+  Closing is per-PR and reversible (reopen), so there's no ordering to compute
+  and nothing to rebase — a failure on one PR is reported and the rest still
+  proceed. Branches are left alone; `git sweep` handles those.
+- **Unmerge**: `git pr unmerge <id...>` reverts PRs that already landed, by
+  opening a **revert PR** for each (via `gh pr revert`) and printing its URL —
+  merge that to actually undo the change. Delegating to GitHub is deliberate:
+  it knows how each PR was merged, and the three methods need genuinely
+  different reverts (a merge commit needs `-m 1`, a squash is one commit, a
+  rebase is N commits with no single commit to undo), so reimplementing it
+  locally would get the rebase case quietly wrong. It also lands as something
+  reviewable that respects branch protection. Only accepts PRs in the MERGED
+  state, and there is deliberately no `--all`.
 
 ### `git new`
 

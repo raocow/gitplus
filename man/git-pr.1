@@ -1,6 +1,6 @@
 .TH GIT-PR 1 "2026-07-22" "gitplus" "gitplus Manual"
 .SH NAME
-git-pr \- list your open pull requests, check one out, or merge one or more
+git-pr \- list, check out, merge, close, or revert pull requests
 .SH SYNOPSIS
 .B git pr
 [\fB\-nt\fR|\fB\-\-no\-title\fR]
@@ -14,6 +14,19 @@ git-pr \- list your open pull requests, check one out, or merge one or more
 .B list
 .RI [ ID " ...]"
 [\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
+.br
+.B git pr
+.B unmerge
+.RI [ ID " ...]"
+[\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
+.br
+.B git pr
+.B close
+.RI [ ID " ...]"
+[\fB\-a\fR|\fB\-\-all\fR]
+[\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
 .br
 .B git pr
 .B merge
@@ -261,6 +274,70 @@ checked before it acts.
 Branches are never deleted after merging \(em run
 .BR git-sweep (1)
 afterward for that.
+.SS "git pr close: close one or more pull requests without merging"
+.B git pr close
+.I ID
+.RI [ ID " ...]"
+closes exactly the PR(s) you name, using the same
+.I ID
+grammar as
+.B "git pr merge"
+\(em numbers, head branch names, URLs,
+.I NNN-MMM
+ranges, and
+.BR . / @ ,
+all mixable \(em with
+.B \-x
+excluding from the set the same way, and
+.B \-n
+previewing without changing anything.
+.PP
+.B git pr close \-\-all
+(or
+.BR \-a ,
+with no IDs) closes every open PR
+.B you authored
+in the repository, scoped to your own for the same reason
+.B "merge \-\-all"
+is.
+.PP
+Closing is far simpler than merging: each PR is independent, so there is no
+conflict ordering to compute and nothing to rebase, and a failure on one PR is
+reported without stopping the rest. It is also reversible \(em a closed PR can
+be reopened. Branches are left alone; use
+.BR git-sweep (1)
+for those.
+.SS "git pr unmerge: revert one or more merged pull requests"
+.B git pr unmerge
+.I ID
+.RI [ ID " ...]"
+reverts PR(s) that have already landed, by opening a
+.B revert pull request
+for each and printing its URL \(em merge that to actually undo the change.
+The same
+.I ID
+grammar and
+.B \-x
+/
+.B \-n
+behaviour as the other subcommands.
+.PP
+This delegates to
+.BR "gh pr revert" ,
+which is deliberate rather than reverting locally: GitHub knows how each PR
+was actually merged, and the three methods need genuinely different reverts
+\(em a merge commit needs
+.BR "\-m 1" ,
+a squash is a single commit, and a rebase is N separate commits with no one
+commit to undo \(em so reimplementing that locally would get the rebase case
+quietly wrong. It also means the revert arrives as something reviewable that
+respects branch protection, rather than a push straight to the base branch.
+.PP
+Only PRs in the
+.B MERGED
+state are accepted; an open PR should be closed, not reverted, and a closed
+one never landed. There is deliberately no
+.BR \-\-all .
 .SH OPTIONS
 .TP
 .BR \-nt ", " \-\-no\-title
@@ -287,12 +364,14 @@ and is not valid with
 .BR \-a ", " \-\-all
 With
 .BR "git pr merge" ,
-merge every mergeable PR you authored instead of specific ones. With
+merge every mergeable PR you authored instead of specific ones; with
+.BR "git pr close" ,
+close every open PR you authored. With
 .B "git pr"
 or
 .BR "git pr list" ,
 an explicit way to say "your open PRs" (the same as giving no IDs). Cannot be
-combined with explicit IDs, in either case.
+combined with explicit IDs, in any case.
 .TP
 .BR \-x ", " \-\-exclude " " \fIID\fR " ..."
 With
