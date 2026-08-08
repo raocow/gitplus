@@ -40,9 +40,22 @@ against the base you are switching to \(em so a branch that has simply been
 ed (true of anything that has ever had a pull request) passes
 .BR \-d 's
 check regardless of whether it was ever merged into the base, silently
-dropping real work. Squash-merged branches still require
-.BR \-\-force :
-a squash is not a literal ancestor of the base either.
+dropping real work.
+.PP
+Squash- and rebase-merged branches are handled as well, and have to be:
+neither is an ancestor of the base (a squash is one new commit; a rebase
+rewrites them), so the ancestor test alone would refuse every branch forever
+in a repository that squash-merges \(em the command never doing its job. When
+that test says no, GitHub is asked whether a pull request from this branch
+into
+.B this
+base was merged. The base match is the point: a stacked PR merged into its
+.B parent
+branch has not reached the base, and is still correctly refused. Requires
+.BR gh ;
+offline it falls back to refusing, which is the safe direction.
+.B \-\-force
+still deletes regardless.
 .PP
 On a detached HEAD there is no branch to delete, so
 .B git done

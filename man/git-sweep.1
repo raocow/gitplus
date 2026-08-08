@@ -23,8 +23,20 @@ the base's remote tip (verified with
 so no unmerged work is lost. It deliberately avoids a bare
 .BR "git branch \-d" ,
 which rechecks mergedness against your current branch and so wrongly refuses
-branches merged upstream when the local base is stale. Squash-merged branches
-are not caught, because a squash is not an ancestor of the base.
+branches merged upstream when the local base is stale.
+.PP
+Squash- and rebase-merged branches are caught as well, despite not being
+ancestors of the base (a squash is one new commit; a rebase rewrites them).
+When the ancestor test says no, GitHub is asked whether a pull request from
+that branch into
+.B this
+base was merged \(em one API call for the whole repository, not one per
+branch. Without it, a repository that squash-merges could never sweep
+anything. The base match matters: a stacked PR merged into its
+.B parent
+branch has not reached the base, and is correctly left alone. Requires
+.BR gh ;
+offline it falls back to the ancestor test only.
 .PP
 Naming one or more branches sweeps just those instead of the whole repo. The
 same safety rule applies: a named branch is skipped unless it's merged into
