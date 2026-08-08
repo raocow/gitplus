@@ -86,8 +86,21 @@
 # re-checked right before it's handled, not just at the start.
 #
 # The merge method (merge/squash/rebase) defaults to the repo's own default
-# (`gh repo view`'s viewerDefaultMergeMethod), or --method to override. Branches
-# are never auto-deleted after merge — run `git sweep` afterward for that.
+# (`gh repo view`'s viewerDefaultMergeMethod), or --method to override for the
+# whole run. Individual PRs can override that with -s/--squash, -m/--merge and
+# -r/--rebase — the same spellings `gh pr merge` uses.
+#
+# A method flag applies BACKWARD, to every id to its left that no other method
+# flag has already claimed. Equivalently: each id takes the method of the
+# nearest method flag to its RIGHT, and an id with none uses the default. So
+#     git pr merge 12-31 --merge 42 43-51 -s
+# merges 12-31 with a merge commit and squashes 42 and 43-51: -s claims 42 and
+# 43-51, and can't reach past the --merge that already claimed 12-31. Ids after
+# the last method flag have nothing to their right and take the default.
+# -x/--exclude composes with this: a method flag ends an -x run like any other
+# flag, and it only ever claims targets, never excludes.
+#
+# Branches are never auto-deleted after merge — run `git sweep` afterward.
 #
 # (Named `git pr`, not `git switch`: git always prefers its built-in `switch`
 # over a script, so a custom `git-switch` could never run. A branch literally
@@ -106,7 +119,9 @@
 #   git pr merge --all              merge every mergeable PR you authored (-a)
 #   git pr ... -x <ids...>          exclude PR(s) (--exclude; also takes ranges)
 #   git pr merge ... -n             preview instead (--dry-run)
-#   git pr merge ... --method squash|merge|rebase   override the merge method
+#   git pr merge ... --method squash|merge|rebase   default method for the run
+#   git pr merge <ids> -s|-m|-r     method for just those ids (--squash/--merge/
+#                                   --rebase; claims the ids to its left)
 #   git pr -h                       show this help
 #
 set -euo pipefail
@@ -173,8 +188,17 @@ rebase itself conflicts, that PR is skipped for you to resolve by hand.
 
   git pr merge 824-830 -x 825 827   merge #824-830 except #825 and #827
 
-  git pr merge ... --method squash|merge|rebase   override the merge method
-                                (default: the repo's own default merge method)
+Merge method: --method squash|merge|rebase sets it for the whole run (default:
+the repo's own). Individual PRs override it with -s/--squash, -m/--merge,
+-r/--rebase — gh pr merge's own spellings. A method flag applies BACKWARD, to
+every id to its left not already claimed by another method flag; equivalently,
+each id takes the nearest method flag to its RIGHT, and ids with none take the
+default. -x composes: a method flag ends an -x run, and only ever claims
+targets, never excludes.
+
+  git pr merge 12-31 --merge 42 43-51 -s
+                                #12-31 by merge commit; #42 and #43-51 squashed
+  git pr merge 1 2 -s 3         #1 and #2 squashed; #3 takes the default
 EOF
 }
 
@@ -187,8 +211,26 @@ all=0
 dry=0
 method=""
 raw_targets=()   # positional args before -x: ids and/or "NNN-MMM" ranges
+raw_methods=()   # parallel to raw_targets: that id's merge method ("" = default)
 raw_excludes=()  # positional args after -x/--exclude
 in_exclude=0     # once -x is seen, bare tokens go to raw_excludes until another flag
+method_flagged=0 # whether any per-id method flag (-s/-m/-r) was given
+
+# A method flag applies BACKWARD, to every id to its left that doesn't already
+# have one — i.e. each id takes the method of the nearest method flag to its
+# RIGHT, and ids with none fall back to the default. That's what makes
+#   git pr merge 12-31 --merge 42 43-51 -s
+# mean "12-31 by merge commit, 42 and 43-51 squashed": -s claims 42 and 43-51,
+# and --merge already claimed 12-31, so -s can't reach past it. Ids after the
+# last method flag have no flag to their right and use the default.
+_claim_pending() {  # _claim_pending <method>
+  local i=0
+  while [ "$i" -lt "${#raw_targets[@]}" ]; do
+    [ -z "${raw_methods[$i]:-}" ] && raw_methods[$i]="$1"
+    i=$((i + 1))
+  done
+  method_flagged=1
+}
 
 # `merge`/`list` are subcommands, not flags: `git pr merge <ids...>` / `--all`,
 # `git pr list <ids...>`.
@@ -204,10 +246,18 @@ while [ $# -gt 0 ]; do
     -a|--all) all=1; in_exclude=0 ;;
     -n|--dry-run) dry=1; in_exclude=0 ;;
     -x|--exclude) in_exclude=1 ;;
+    # Same spellings gh pr merge uses, so they read the same way here.
+    -s|--squash) _claim_pending squash; in_exclude=0 ;;
+    -m|--merge)  _claim_pending merge;  in_exclude=0 ;;
+    -r|--rebase) _claim_pending rebase; in_exclude=0 ;;
     --method) shift; method="${1:-}"; in_exclude=0 ;;
     -*) echo "git pr: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *)
-      if [ "$in_exclude" = 1 ]; then raw_excludes+=("$1"); else raw_targets+=("$1"); fi
+      if [ "$in_exclude" = 1 ]; then
+        raw_excludes+=("$1")
+      else
+        raw_targets+=("$1"); raw_methods+=("")
+      fi
       ;;
   esac
   shift
@@ -232,9 +282,9 @@ if [ "$subcmd" = "merge" ]; then
 else
   # --all is also valid here (explicitly "all my open PRs", same meaning as
   # the implicit default when no targets are given) so its grammar mirrors
-  # `git pr merge --all`; -n/--method genuinely don't apply to listing.
-  if [ "$dry" = 1 ] || [ -n "$method" ]; then
-    echo "git pr: --dry-run/--method only apply to 'git pr merge'" >&2; exit 2
+  # `git pr merge --all`; -n/--method/-s/-m/-r genuinely don't apply to listing.
+  if [ "$dry" = 1 ] || [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
+    echo "git pr: --dry-run and the merge-method flags only apply to 'git pr merge'" >&2; exit 2
   fi
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
     echo "git pr: can't combine --all with specific PRs" >&2; exit 2
@@ -336,8 +386,20 @@ fi
 # ENTIRELY digits-hyphen-digits, so a branch name like "task-42" passes
 # through untouched. Applied to both the target list and the exclude list,
 # so -x accepts ranges too.
+# Expanded one token at a time rather than in bulk, so each resulting id keeps
+# the method its original token carried (a range inherits the range's method).
 merge_ids=()
-[ "${#raw_targets[@]}" -gt 0 ] && expand_ranges "git pr" merge_ids "${raw_targets[@]}"
+merge_methods=()
+_ti=0
+while [ "$_ti" -lt "${#raw_targets[@]}" ]; do
+  _one=()
+  expand_ranges "git pr" _one "${raw_targets[$_ti]}"
+  for _e in ${_one[@]+"${_one[@]}"}; do
+    merge_ids+=("$_e")
+    merge_methods+=("${raw_methods[$_ti]:-}")
+  done
+  _ti=$((_ti + 1))
+done
 exclude_ids=()
 [ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges "git pr" exclude_ids "${raw_excludes[@]}"
 
@@ -376,8 +438,19 @@ if [ "$subcmd" = "merge" ]; then
     method="$(printf '%s' "$method" | tr '[:upper:]' '[:lower:]')"
     case "$method" in merge|squash|rebase) ;; *) method=squash ;; esac
   fi
-  merge_flag="--$method"
   skipped=()
+
+  # "<num>:<method>" pairs for PRs given an explicit per-id method flag; every
+  # other PR falls through to $method (the --method override, or the repo's
+  # own default resolved above).
+  method_map=""
+  method_for() {  # method_for <num> -> the merge method for that PR
+    local n="$1" pair
+    for pair in $method_map; do
+      case "$pair" in "$n":*) printf '%s' "${pair#*:}"; return ;; esac
+    done
+    printf '%s' "$method"
+  }
 
   # Resolve -x/--exclude ids to PR numbers up front (an exclude that doesn't
   # resolve to anything is just a no-op, not an error — it may already be
@@ -405,7 +478,10 @@ if [ "$subcmd" = "merge" ]; then
     fi
   else
     nums=""; seen_nums=""
-    for mid in "${merge_ids[@]}"; do
+    mi=0
+    while [ "$mi" -lt "${#merge_ids[@]}" ]; do
+      mid="${merge_ids[$mi]}"; mid_method="${merge_methods[$mi]:-}"
+      mi=$((mi + 1))
       n="$(gh pr view "$mid" --json number,state --jq 'select(.state == "OPEN") | .number' 2>/dev/null || true)"
       if [ -z "$n" ]; then
         skipped+=("$mid -- couldn't resolve to an open PR")
@@ -415,6 +491,9 @@ if [ "$subcmd" = "merge" ]; then
       seen_nums="$seen_nums $n"
       case " $exclude_nums " in *" $n "*) skipped+=("#$n -- excluded"); continue ;; esac
       nums="$nums $n"
+      # Record only an explicit per-id method; anything else resolves to the
+      # default at lookup time.
+      [ -n "$mid_method" ] && method_map="$method_map $n:$mid_method"
     done
     if [ -z "$nums" ]; then
       echo "git pr merge: none of the given PR(s) could be resolved (or all were excluded)."
@@ -497,9 +576,9 @@ if [ "$subcmd" = "merge" ]; then
   # few seconds. Bounded (not indefinite), so a real failure still surfaces
   # promptly. Prints the last attempt's output; exit status is its own.
   merge_with_retry() {
-    local num="$1" tries=0 err
+    local num="$1" flag="$2" tries=0 err
     while true; do
-      if err="$(gh pr merge "$num" "$merge_flag" 2>&1)"; then
+      if err="$(gh pr merge "$num" "$flag" 2>&1)"; then
         printf '%s' "$err"; return 0
       fi
       tries=$((tries + 1))
@@ -551,15 +630,16 @@ if [ "$subcmd" = "merge" ]; then
   for num in "${order[@]}"; do
     title="$(title_of "$num")"
     meta="$(meta_of "$num")"; head="$(printf '%s' "$meta" | cut -f2)"; base="$(printf '%s' "$meta" | cut -f3)"
+    pr_method="$(method_for "$num")"; pr_flag="--$pr_method"
 
     status="$(gh pr view "$num" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || echo UNKNOWN)"
 
     case "$status" in
       CLEAN|UNSTABLE)
         if [ "$dry" = 1 ]; then
-          plan+=("#$num $title -- merge ($method)"); continue
+          plan+=("#$num $title -- merge ($pr_method)"); continue
         fi
-        if err="$(merge_with_retry "$num")"; then
+        if err="$(merge_with_retry "$num" "$pr_flag")"; then
           step "merged #$num ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
           merged+=("#$num $title")
         else
@@ -570,9 +650,9 @@ if [ "$subcmd" = "merge" ]; then
       BEHIND|DIRTY)
         if [ "$dry" = 1 ]; then
           if [ "$status" = "BEHIND" ]; then
-            plan+=("#$num $title -- try direct merge, else rebase onto $base")
+            plan+=("#$num $title -- try direct merge ($pr_method), else rebase onto $base")
           else
-            plan+=("#$num $title -- rebase onto $base, then merge")
+            plan+=("#$num $title -- rebase onto $base, then merge ($pr_method)")
           fi
           continue
         fi
@@ -582,7 +662,7 @@ if [ "$subcmd" = "merge" ]; then
         # back to rebasing if it fails. DIRTY means GitHub already found a
         # real conflict, so go straight to rebasing.
         merged_directly=0
-        if [ "$status" = "BEHIND" ] && gh pr merge "$num" "$merge_flag" >/dev/null 2>&1; then
+        if [ "$status" = "BEHIND" ] && gh pr merge "$num" "$pr_flag" >/dev/null 2>&1; then
           step "merged #$num ${_dim}($title, no rebase needed)${_off} ${_branch}[$head -> $base]${_off}"
           merged+=("#$num $title")
           merged_directly=1
@@ -600,7 +680,7 @@ if [ "$subcmd" = "merge" ]; then
           rc=0; rebase_and_push "$head" "$base" || rc=$?
           case "$rc" in
             0)
-              if err="$(merge_with_retry "$num")"; then
+              if err="$(merge_with_retry "$num" "$pr_flag")"; then
                 step "rebased + merged #$num ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
                 merged+=("#$num $title")
               else
@@ -624,9 +704,9 @@ if [ "$subcmd" = "merge" ]; then
         ;;
       *)
         if [ "$dry" = 1 ]; then
-          plan+=("#$num $title -- attempt merge ($status)"); continue
+          plan+=("#$num $title -- attempt merge ($pr_method; status $status)"); continue
         fi
-        if err="$(merge_with_retry "$num")"; then
+        if err="$(merge_with_retry "$num" "$pr_flag")"; then
           step "merged #$num ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
           merged+=("#$num $title")
         else

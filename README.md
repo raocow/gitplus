@@ -181,6 +181,7 @@ git pr merge <id...>              merge the given PR(s)
 git pr merge --all|-a             merge every mergeable PR YOU authored
 git pr ... -x|--exclude <id...>   exclude PR(s) from any of the above
 git pr merge ... -n|--dry-run     preview the merge plan, change nothing
+git pr merge <id...> -s|-m|-r     merge method for just those PRs
 ```
 
 Requires the GitHub CLI (`gh`).
@@ -220,8 +221,25 @@ Requires the GitHub CLI (`gh`).
   - For each PR: a clean one merges directly; one needing an update is
     rebased in a scratch worktree (never touching your current branch) and
     pushed; blocked, draft, or unresolvable PRs are skipped.
-  - `--method merge|squash|rebase` overrides the merge method (default: the
-    repo's own). Branches aren't auto-deleted — run `git sweep` after.
+  - `--method merge|squash|rebase` sets the method for the whole run
+    (default: the repo's own). Branches aren't auto-deleted — run `git sweep`
+    after.
+  - **Per-PR method**: `-s`/`--squash`, `-m`/`--merge`, `-r`/`--rebase` — the
+    same spellings `gh pr merge` uses. A method flag applies **backward**, to
+    every id to its left that no other method flag already claimed;
+    equivalently, each id takes the nearest method flag to its **right**, and
+    an id with none takes the default. `-x` composes with it: a method flag
+    ends an `-x` run like any other flag, and only ever claims targets, never
+    excludes.
+
+    ```
+    git pr merge 12-31 --merge 42 43-51 -s   # 12-31 by merge commit,
+                                             # 42 and 43-51 squashed
+    git pr merge 1 2 -s 3                    # 1 and 2 squashed, 3 default
+    ```
+
+    `-n`/`--dry-run` lists the method chosen for each PR, so a mixed run is
+    always checkable before it acts.
 
 ### `git new`
 
