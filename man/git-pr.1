@@ -120,13 +120,22 @@ works the same as under
 is also accepted here, explicitly meaning "your open PRs" \(em the same thing
 as giving no IDs at all, spelled out for symmetry with
 .BR "git pr merge \-\-all" .)
-As a holdover from before
-.B list
-was its own subcommand, giving
+IDs that cannot be a checkout \(em two or more of them, a range, or
+.B \-x
+\(em are an
+.BR error ,
+not an implicit list. They used to list, which meant the same command shape
+did two unrelated things one character apart:
+.B git pr 422
+changed your working tree while
+.B git pr 422-423
+printed a list and touched nothing. That difference is too sharp to hinge on
+how many arguments you happened to type, so those forms now fail with a
+pointer to
+.BR "git pr list" .
+Bare
 .B git pr
-two or more bare IDs (or a range, or
-.BR \-x )
-with no subcommand does the same thing.
+with no IDs still lists your open pull requests.
 .PP
 Named
 .I git pr
