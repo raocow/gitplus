@@ -190,8 +190,8 @@ Requires the GitHub CLI (`gh`).
 
 - **List** (bare `git pr`) shows your open PRs; `-nt`/`--no-title` prints
   bare URLs, one per line, for piping. `-c`/`--copy` also copies the listing
-  to the clipboard — works with any listing form (`list`, checkout-multi,
-  `-nt`), not `merge`.
+  to the clipboard — works with any listing form (`list`, `-nt`, `-g`), not
+  `merge`.
 - **List globally** with `-g`/`--global`: every open PR you have anywhere,
   under **every** gh account you're logged into — not just the active one,
   and not scoped to a repo, so it works outside one too. Each row is tagged
@@ -209,8 +209,14 @@ Requires the GitHub CLI (`gh`).
   worktree, it's freed from there first (see `git swap`) instead of refusing.
 - **Inspect without checking out**: `git pr list <id...>` shows the
   title/link for any number of PRs, any author, any state. `.`/`@` works
-  here too. (`git pr <id> <id>` — 2+ ids, a range, or `-x`, no `list` — does
-  the same thing, kept for old muscle memory.)
+  here too.
+- **Ids that can't be a checkout are an error, not an implicit list.**
+  `git pr <id>` checks out; anything that can't (2+ ids, a range, or `-x`)
+  used to quietly list instead, so the same command shape did two unrelated
+  things one character apart — `git pr 422` changed your working tree while
+  `git pr 422-423` printed a list and touched nothing. That's too sharp a
+  difference to hinge on argument count, so those forms now error and point
+  at `git pr list`. Bare `git pr` with no ids still lists your open PRs.
 - **Merge**: `git pr merge <id...>` merges exactly the PRs you name, whoever
   authored them — naming them is explicit, so it's not scoped to you.
   `git pr merge --all`/`-a` (no ids) is a broad sweep, so it's scoped to PRs
