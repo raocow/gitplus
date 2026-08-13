@@ -405,10 +405,10 @@ require_git_repo "git pr"
 # so claiming them collides with nothing.)
 _here=0
 if [ "${#raw_targets[@]}" -gt 0 ]; then
-  for t in "${raw_targets[@]}"; do case "$t" in .|@) _here=1 ;; esac; done
+  for t in ${raw_targets[@]+"${raw_targets[@]}"}; do case "$t" in .|@) _here=1 ;; esac; done
 fi
 if [ "${#raw_excludes[@]}" -gt 0 ]; then
-  for t in "${raw_excludes[@]}"; do case "$t" in .|@) _here=1 ;; esac; done
+  for t in ${raw_excludes[@]+"${raw_excludes[@]}"}; do case "$t" in .|@) _here=1 ;; esac; done
 fi
 if [ "$_here" = 1 ]; then
   here_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -443,7 +443,7 @@ while [ "$_ti" -lt "${#raw_targets[@]}" ]; do
   _ti=$((_ti + 1))
 done
 exclude_ids=()
-[ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges "git pr" exclude_ids "${raw_excludes[@]}"
+[ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges "git pr" exclude_ids ${raw_excludes[@]+"${raw_excludes[@]}"}
 
 # No-subcommand dispatch: with ids, bare `git pr` means exactly one thing —
 # check that PR out. It used to ALSO mean "list these" whenever the ids
@@ -512,7 +512,7 @@ if [ "$subcmd" = "merge" ]; then
   # resolve to anything is just a no-op, not an error — it may already be
   # closed, which is what you wanted anyway).
   exclude_nums=""
-  for xid in "${exclude_ids[@]}"; do
+  for xid in ${exclude_ids[@]+"${exclude_ids[@]}"}; do
     xn="$(gh pr view "$xid" --json number --jq '.number' 2>/dev/null || true)"
     [ -n "$xn" ] && exclude_nums="$exclude_nums $xn"
   done
@@ -554,7 +554,7 @@ if [ "$subcmd" = "merge" ]; then
     if [ -z "$nums" ]; then
       echo "git pr merge: none of the given PR(s) could be resolved (or all were excluded)."
       if [ "${#skipped[@]}" -gt 0 ]; then
-        echo "Skipped:"; for s in "${skipped[@]}"; do echo "  $s"; done
+        echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
       fi
       exit 0
     fi
@@ -583,7 +583,7 @@ if [ "$subcmd" = "merge" ]; then
   if [ "${#cand[@]}" -eq 0 ]; then
     echo "git pr merge: nothing to merge (all given PRs are drafts or unreadable)."
     if [ "${#skipped[@]}" -gt 0 ]; then
-      echo "Skipped:"; for s in "${skipped[@]}"; do echo "  $s"; done
+      echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
     fi
     exit 0
   fi
@@ -597,9 +597,9 @@ if [ "$subcmd" = "merge" ]; then
   # changed files, not the square of the PR count, so it stays fast even with
   # a large open-PR count (most files belong to exactly one PR and cost
   # nothing here; only files shared by multiple PRs do any work).
-  cand_list="$tmp/cand_list"; printf '%s\n' "${cand[@]}" > "$cand_list"
+  cand_list="$tmp/cand_list"; printf '%s\n' ${cand[@]+"${cand[@]}"} > "$cand_list"
   pairs="$tmp/pairs"; : > "$pairs"
-  for num in "${cand[@]}"; do
+  for num in ${cand[@]+"${cand[@]}"}; do
     [ -s "$files_dir/$num" ] || continue
     sed "s/\$/\t$num/" "$files_dir/$num" >> "$pairs"
   done
@@ -683,7 +683,7 @@ if [ "$subcmd" = "merge" ]; then
   merged=()
   plan=()   # dry-run: "#n title -- action" lines
 
-  for num in "${order[@]}"; do
+  for num in ${order[@]+"${order[@]}"}; do
     title="$(title_of "$num")"
     meta="$(meta_of "$num")"; head="$(printf '%s' "$meta" | cut -f2)"; base="$(printf '%s' "$meta" | cut -f3)"
     pr_method="$(method_for "$num")"; pr_flag="--$pr_method"
@@ -776,8 +776,8 @@ if [ "$subcmd" = "merge" ]; then
   if [ "$dry" = 1 ]; then
     echo
     echo "Dry run — nothing was changed. Order (least-entangled first):"
-    for p in "${plan[@]}"; do echo "  $p"; done
-    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in "${skipped[@]}"; do echo "  $s"; done; }
+    for p in ${plan[@]+"${plan[@]}"}; do echo "  $p"; done
+    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done; }
     echo
     echo "Run without --dry-run to actually merge."
   else
@@ -793,7 +793,7 @@ if [ "$subcmd" = "merge" ]; then
     else
       echo
       echo "Merged ${#merged[@]}; unmergeable/skipped (${#skipped[@]}):"
-      for s in "${skipped[@]}"; do echo "  $s"; done
+      for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
     fi
   fi
   exit 0
@@ -838,7 +838,7 @@ if [ "$subcmd" = "close" ]; then
     if [ -z "$nums" ]; then
       echo "git pr close: none of the given PR(s) could be resolved (or all were excluded)."
       if [ "${#skipped[@]}" -gt 0 ]; then
-        echo "Skipped:"; for s in "${skipped[@]}"; do echo "  $s"; done
+        echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
       fi
       exit 0
     fi
@@ -850,7 +850,7 @@ if [ "$subcmd" = "close" ]; then
       t="$(gh pr view "$n" --json title --jq '.title' 2>/dev/null || true)"
       echo "  #$n ${_dim}($t)${_off}"
     done
-    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in "${skipped[@]}"; do echo "  $s"; done; }
+    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done; }
     echo
     echo "Run without --dry-run to actually close."
     exit 0
@@ -876,7 +876,7 @@ if [ "$subcmd" = "close" ]; then
   else
     echo
     echo "Closed $closed; skipped (${#skipped[@]}):"
-    for s in "${skipped[@]}"; do echo "  $s"; done
+    for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
   fi
   exit 0
 fi
@@ -924,7 +924,7 @@ if [ "$subcmd" = "unmerge" ]; then
   if [ -z "$nums" ]; then
     echo "git pr unmerge: none of the given PR(s) are merged (or all were excluded)."
     if [ "${#skipped[@]}" -gt 0 ]; then
-      echo "Skipped:"; for s in "${skipped[@]}"; do echo "  $s"; done
+      echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
     fi
     exit 0
   fi
@@ -935,7 +935,7 @@ if [ "$subcmd" = "unmerge" ]; then
       t="$(gh pr view "$n" --json title --jq '.title' 2>/dev/null || true)"
       echo "  #$n ${_dim}($t)${_off}"
     done
-    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in "${skipped[@]}"; do echo "  $s"; done; }
+    [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done; }
     echo
     echo "Run without --dry-run to actually open them."
     exit 0
@@ -961,7 +961,7 @@ if [ "$subcmd" = "unmerge" ]; then
   else
     echo
     echo "Opened $reverted; skipped (${#skipped[@]}):"
-    for s in "${skipped[@]}"; do echo "  $s"; done
+    for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
   fi
   exit 0
 fi
@@ -988,7 +988,7 @@ if [ "$subcmd" != "merge" ] && [ -z "$id" ]; then
       exit 1
     fi
   else
-    for tid in "${merge_ids[@]}"; do
+    for tid in ${merge_ids[@]+"${merge_ids[@]}"}; do
       row="$(gh pr view "$tid" --json number,url,title,state \
         --jq '"\(.number)\t\(.url)\t\(.title)\t\(.state)"' 2>/dev/null || true)"
       [ -n "$row" ] && rows="$rows
@@ -998,7 +998,7 @@ $row"
 
   if [ "${#exclude_ids[@]}" -gt 0 ]; then
     exclude_nums=""
-    for xid in "${exclude_ids[@]}"; do
+    for xid in ${exclude_ids[@]+"${exclude_ids[@]}"}; do
       xn="$(gh pr view "$xid" --json number --jq '.number' 2>/dev/null || true)"
       [ -n "$xn" ] && exclude_nums="$exclude_nums $xn"
     done

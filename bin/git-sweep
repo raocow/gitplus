@@ -215,7 +215,7 @@ if [ "${#raw_targets[@]}" -gt 0 ]; then
   # safety rule applies (merged-into-base check happens below, in the deletion
   # loop) — naming a branch doesn't bypass it; --force still does.
   targets=""
-  for b in "${raw_targets[@]}"; do
+  for b in ${raw_targets[@]+"${raw_targets[@]}"}; do
     if [ "$b" = "$base" ]; then
       echo "git sweep: refusing to delete the base branch '$b'" >&2; exit 2
     fi
