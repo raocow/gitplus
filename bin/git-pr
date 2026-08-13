@@ -1036,8 +1036,35 @@ EOF
     # reported as exactly that. The account name stays, in dim, so a genuinely
     # wrong identity is still obvious without dressing up a normal result as
     # an error.
+    # An empty result has three very different causes that used to look
+    # identical: you genuinely have none, gh is acting as an account that
+    # isn't yours, or gh is resolving a different repo than you think (a fork
+    # remote, an ssh alias). Two rounds of back-and-forth diagnosing exactly
+    # this is what motivated saying it outright. So on the empty path only —
+    # never the hot path — spend a couple of extra calls and report which
+    # repo, which identity, and whether anyone ELSE has PRs open here. That
+    # last one is the tell: "2 open, by alexrao2000" while you queried as
+    # someone else names the problem without anyone having to go digging.
     me="$(gh api user --jq .login 2>/dev/null || echo '?')"
-    printf 'no open PRs in this repo %s(authored by %s)%s\n' "$_dim" "$me" "$_off"
+    repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo '?')"
+    others="$(gh pr list --state open --limit 50 --json author \
+      --jq '[.[].author.login] | unique | join(", ")' 2>/dev/null || true)"
+    printf 'no open PRs in %s authored by %s\n' "$repo" "$me"
+    if [ -n "$others" ]; then
+      printf '  %sbut this repo has open PRs by: %s%s\n' "$_dim" "$others" "$_off"
+      case ", $others ," in
+        *", $me ,"*)
+          # You appear in that list, so --author @me should have matched and
+          # didn't. The two calls can only disagree about WHICH repo they hit,
+          # which happens when origin points somewhere unexpected (a fork, an
+          # ssh alias) — worth naming, because the account looks right and so
+          # nobody thinks to check the remote.
+          printf '  %s...including you, so the author filter should have matched.%s\n' "$_dim" "$_off"
+          printf '  %sorigin may not be the repo you think — check: git remote -v%s\n' "$_dim" "$_off"
+          ;;
+        *) printf '  %sgh is acting as %s here — check: gh auth status%s\n' "$_dim" "$me" "$_off" ;;
+      esac
+    fi
   fi
   if [ "$copy" = 1 ] && [ -n "$listing" ]; then
     printf '%s\n' "$listing" | pbcopy
