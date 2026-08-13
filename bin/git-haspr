@@ -46,6 +46,7 @@ esac
 
 require_git_repo "git haspr"
 require_gh "git haspr"
+gh_scope_to_repo
 
 branch="${1:-}"
 if [ -z "$branch" ]; then

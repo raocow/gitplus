@@ -345,6 +345,11 @@ fi
 # ══════════════════════════════════════════════════════════════════════════
 if [ "$global" = 1 ]; then
   require_gh "git pr"
+  # Deliberately NOT gh_scope_to_repo here: -g is the one form that isn't
+  # about the current repo. With GH_TOKEN set, `gh auth status` lists the
+  # env-token identity IN ADDITION to the keyring accounts (verified: the
+  # scoped account appears twice), so this loop would query it twice and
+  # print each of its PRs twice.
   accounts="$(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p')"
   if [ -z "$accounts" ]; then
     echo "git pr: no accounts logged in to gh (try: gh auth login)" >&2; exit 1
@@ -465,6 +470,7 @@ if [ "$subcmd" = "" ] && { [ "${#raw_targets[@]}" -gt 0 ] || [ "${#raw_excludes[
 fi
 
 require_gh "git pr"
+gh_scope_to_repo
 
 # ══════════════════════════════════════════════════════════════════════════
 # git pr merge: merge specific PR(s), or --all mergeable PRs you authored.

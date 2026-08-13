@@ -83,6 +83,36 @@ require_gh() {
     echo "$1: needs the GitHub CLI ('gh') — https://cli.github.com" >&2; exit 1; }
 }
 
+# gh_scope_to_repo — point gh at the account bound to THIS directory, for the
+# lifetime of this process only.
+#
+# gh has no per-repository authentication. Its "active account" is one global
+# setting in ~/.config/gh/hosts.yml, shared by every terminal, script and
+# agent on the machine; the only per-context lever it offers is the GH_TOKEN
+# environment variable. devrig's ghswitch sets that per shell on cd, which
+# works well — but only for INTERACTIVE shells, since a non-interactive one
+# (a script, a cron job, an agent's tool call) never sources ~/.zshrc and so
+# silently falls back to whatever the global account happens to be. That is
+# the failure this closes: these commands resolve the account themselves, so
+# `git pr` in a repo bound to one identity uses that identity no matter what
+# started it.
+#
+# Soft dependency: without devrig, or outside a bound directory, this is a
+# no-op and gh behaves exactly as before. An already-set GH_TOKEN always
+# wins, so an explicit override from the caller is never second-guessed.
+# `command devrig` deliberately bypasses any devrig shell function.
+gh_scope_to_repo() {
+  [ -n "${GH_TOKEN:-}" ] && return 0
+  command -v gh >/dev/null 2>&1 || return 0
+  command -v devrig >/dev/null 2>&1 || return 0
+  local acct tok
+  acct="$(command devrig account _gh-for-dir "$PWD" 2>/dev/null)" || return 0
+  [ -n "$acct" ] || return 0
+  tok="$(gh auth token --user "$acct" 2>/dev/null)" || return 0
+  [ -n "$tok" ] && export GH_TOKEN="$tok"
+  return 0
+}
+
 # pr_merged_into <branch> <base> — prints the number of a MERGED pull request
 # from <branch> into <base>, if there is one. Empty (and returns 1) otherwise.
 #
@@ -102,6 +132,7 @@ require_gh() {
 # it had one into main.
 pr_merged_into() {
   local branch="$1" base="$2" n
+  gh_scope_to_repo
   command -v gh >/dev/null 2>&1 || return 1
   n="$(gh pr list --head "$branch" --base "$base" --state merged --limit 1 \
     --json number --jq '.[0].number // empty' 2>/dev/null || true)"
@@ -117,6 +148,7 @@ pr_merged_into() {
 # nothing if gh is unavailable, so callers degrade to the ancestor test.
 merged_pr_heads_into() {
   local base="$1"
+  gh_scope_to_repo
   command -v gh >/dev/null 2>&1 || return 0
   gh pr list --base "$base" --state merged --limit 200 \
     --json headRefName --jq '.[].headRefName' 2>/dev/null || true

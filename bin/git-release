@@ -88,6 +88,7 @@ fi
 
 require_git_repo "git release"
 require_gh "git release"
+gh_scope_to_repo
 
 if [ -n "$(git status --porcelain)" ]; then
   echo "git release: you have uncommitted changes — commit or stash them first" >&2
