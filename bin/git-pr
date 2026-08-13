@@ -1050,6 +1050,21 @@ EOF
     others="$(gh pr list --state open --limit 50 --json author \
       --jq '[.[].author.login] | unique | join(", ")' 2>/dev/null || true)"
     printf 'no open PRs in %s authored by %s\n' "$repo" "$me"
+
+    # Multiple GitHub remotes is the cause nobody suspects. gh picks ONE to
+    # query, and its precedence is not "origin wins" — a fork remote can beat
+    # origin — so a repo that was renamed (old name still on origin, new name
+    # added as another remote) silently answers for the wrong one. Naming
+    # every remote alongside the repo gh actually chose makes the mismatch
+    # visible, and `gh repo set-default` is the supported way to pin it.
+    ghremotes="$(git remote -v 2>/dev/null | awk '/\(fetch\)/ && /github\.com/ {print $1"→"$2}')"
+    nremotes="$(printf '%s' "$ghremotes" | grep -c . || true)"
+    if [ "${nremotes:-0}" -gt 1 ]; then
+      printf '  %s%s GitHub remotes here, and gh queried %s:%s\n' "$_dim" "$nremotes" "$repo" "$_off"
+      printf '%s\n' "$ghremotes" | sed "s/^/    ${_dim}/;s/\$/${_off}/"
+      printf '  %spin the right one: gh repo set-default <owner/repo>%s\n' "$_dim" "$_off"
+    fi
+
     if [ -n "$others" ]; then
       printf '  %sbut this repo has open PRs by: %s%s\n' "$_dim" "$others" "$_off"
       case ", $others ," in
