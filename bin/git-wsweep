@@ -164,13 +164,13 @@ if [ "$dry" = 1 ]; then
   else
     echo "Would remove (HEAD merged into '$mergeref') and delete the branch:"
   fi
-  for l in "${labels[@]}"; do echo "  $l"; done
+  for l in ${labels[@]+"${labels[@]}"}; do echo "  $l"; done
   [ -n "$skipped" ] && { echo "Skipped (unmerged):"; printf '%s' "$skipped"; }
   exit 0
 fi
 
 # Note: build the command per-branch rather than expanding a possibly-empty
-# flag array — `"${arr[@]}"` on an empty array trips `set -u` on bash 3.2 (macOS).
+# flag array — `${arr[@]+"${arr[@]}"}` on an empty array trips `set -u` on bash 3.2 (macOS).
 for i in "${!targets[@]}"; do
   if [ "$force" = 1 ]; then
     ok=1; git worktree remove --force "${targets[$i]}" 2>/dev/null || ok=0
