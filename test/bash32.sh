@@ -109,6 +109,8 @@ check haspr
 check swap main
 check new tmpbranch
 check wsweep -n
+check account list
+check account check
 
 echo
 echo "$pass passed, $fail failed"
