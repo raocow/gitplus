@@ -87,6 +87,7 @@ on `fpath` and you can drop it.)
 | [`git done`](#git-done) | Switch back to base, fast-forward it, delete the branch you left |
 | [`git swap`](#git-swap) | Check out a branch or worktree here, freeing it from another worktree first |
 | [`git release`](#git-release) | Tag the current commit and publish a GitHub release for it |
+| [`git account`](#git-account) | Tie directories to different git/ssh/GitHub identities |
 
 Each takes `-h` for a short usage summary, or `--help` to open its full man
 page (installed to `share/man/man1` by `install.sh` and by Homebrew).
@@ -353,6 +354,51 @@ The bookend to `git pr`:
   local base has diverged (never a merge commit).
 - On a detached HEAD, it just switches back to base. Already on the base, it
   just pulls (fetch + fast-forward — nothing to delete).
+
+### `git account`
+
+```
+git account add <name> --email <email> [--name <git name>] [--host <host>]
+                       [--dir <path>] [--gh-user <user>]
+git account bind <name> <dir>
+git account list | key <name> | check
+```
+
+Two GitHub accounts — yours and an employer's — normally means remembering to
+set `user.email` per clone and juggling ssh keys by hand. Set an account up
+once and every repo under a bound directory commits as it, reaches the host
+with its key, and (with `--gh-user`) has `gh` talk to GitHub as it.
+
+```bash
+git account add work --email me@work.com --dir ~/code/work --gh-user work-gh
+# paste the printed key into that host account, then clone via the alias:
+git clone git@github.com-work:acme/api.git ~/code/work/api
+git account check
+```
+
+- **Nothing is sourced into your shell.** Git reads `includeIf` and ssh reads
+  the `Host` alias on their own, so this is config plus a keypair. Edits are
+  only ever *appended*, wrapped in `BEGIN`/`END` sentinel comments, and never
+  rewritten in place — a botched rewrite of an ssh config can lock you out of
+  every host you use. Existing keys, host blocks and identity files are left
+  alone and reported, never clobbered.
+- **`check` is the one worth running.** The main failure mode is silent:
+  rename or move a bound directory and its `includeIf` points at a path that's
+  gone, so git quietly falls back to your global identity and the wrong name
+  lands on every commit with no error anywhere.
+- **The other commands use this.** Each one resolves the account bound to the
+  current directory and scopes its `gh` calls to that identity, so the right
+  account is used no matter which shell, script or agent invoked it.
+- **Optional shell hook**: `share/zsh/ghswitch.zsh` keeps `gh`'s identity
+  matched to the directory you're in, per shell, by exporting `GH_TOKEN`
+  rather than changing `gh`'s machine-wide active account. Source it from
+  `~/.zshrc`. Without it the commands still resolve the right account
+  themselves — the hook only helps bare `gh` commands you type by hand.
+
+This was `devrig account` until gitplus came to depend on it. Config written
+by that version is still read — the old `devrig:` sentinel prefix and the
+current `gitplus:` one are both understood — so existing setups keep working
+with no migration.
 
 ### `git release`
 

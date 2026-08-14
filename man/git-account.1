@@ -1,0 +1,160 @@
+.TH GIT-ACCOUNT 1 "2026-08-13" "gitplus" "gitplus Manual"
+.SH NAME
+git-account \- tie directories to different git/ssh/GitHub identities
+.SH SYNOPSIS
+.B git account add
+.I NAME
+.BI \-\-email " EMAIL"
+.RI [ \-\-name " GIT-NAME"]
+.RI [ \-\-host " HOST"]
+.RI [ \-\-dir " PATH"]
+.RI [ \-\-gh\-user " USER"]
+.br
+.B git account bind
+.I NAME DIR
+.br
+.B git account list
+.br
+.B git account key
+.I NAME
+.br
+.B git account check
+.SH DESCRIPTION
+Work split across more than one GitHub account \(em a personal one and an
+employer's \(em normally means remembering to set
+.I user.email
+per clone and juggling ssh keys by hand.
+.B git account
+sets an account up once, and every repository under a bound directory then
+commits as it, reaches the host with its key, and (with
+.BR \-\-gh\-user )
+has
+.B gh
+talk to GitHub as it.
+.PP
+Nothing is sourced into your shell. Git reads
+.I includeIf
+from your git config and ssh reads the
+.I Host
+alias from your ssh config on their own, so this is persistent configuration
+plus a keypair. Edits are always APPENDED, wrapped in
+.I BEGIN/END
+sentinel comments, and never rewritten in place \(em a botched rewrite of an
+ssh config can lock you out of every host you use. An existing key, host
+block or identity file is left alone and reported rather than clobbered.
+.PP
+The other git-* commands use this: each one resolves the account bound to the
+current directory and scopes its
+.B gh
+calls to that identity, so the right account is used no matter which shell,
+script or agent invoked it.
+.SH OPTIONS
+.TP
+.BI \-\-email " EMAIL"
+Required. The git
+.I user.email
+for the account.
+.TP
+.BI \-\-name " GIT-NAME"
+The git
+.IR user.name .
+Defaults to
+.IR NAME .
+.TP
+.BI \-\-host " HOST"
+The git host. Defaults to
+.IR github.com .
+.TP
+.BI \-\-dir " PATH"
+Bind the account to
+.I PATH
+in the same step, equivalent to a following
+.BR "git account bind" .
+.TP
+.BI \-\-gh\-user " USER"
+Pair the account with a
+.B gh
+CLI login. This is what lets the other commands, and the optional
+.I ghswitch
+shell hook, pick the right GitHub identity per directory.
+.SH SUBCOMMANDS
+.TP
+.B check
+The one worth running. Verifies every account and binding still applies and
+exits non-zero if not. This matters because the main failure mode is silent:
+rename or move a bound directory and its
+.I includeIf
+points at a path that no longer exists, so git quietly falls back to your
+global identity and the wrong name lands on every commit with no error
+anywhere. Where a repository exists under a binding, it confirms end to end
+that git really resolves the expected address.
+.TP
+.B key
+Print the account's public key again \(em for pasting into the host, or for
+authorising it against an SSO-enforcing organisation.
+.SH SHELL HOOK
+.I share/zsh/ghswitch.zsh
+is optional and keeps
+.BR gh 's
+identity matched to the directory you are in, per shell, by exporting
+.B GH_TOKEN
+rather than changing
+.BR gh 's
+machine-wide active account. Source it from your
+.IR ~/.zshrc .
+Without it the commands still resolve the right account themselves; the hook
+only helps bare
+.B gh
+invocations you type yourself.
+.SH HISTORY
+This was
+.B devrig account
+until gitplus grew a hard dependency on it. Configuration written by that
+version is still read: the sentinel comments it wrote used a
+.I devrig:
+prefix, and both that and the current
+.I gitplus:
+prefix are understood, so existing setups keep working with no migration. New
+entries are written with the current prefix, and a file containing a mix of
+both is fine.
+.SH ENVIRONMENT
+.TP
+.B GITPLUS_SSH_CONFIG
+Override the ssh config written to (default
+.IR ~/.ssh/config ).
+.TP
+.B GITPLUS_GITCONFIG
+Override the git config written to (default
+.IR ~/.gitconfig ).
+.TP
+.B GITPLUS_SSH_KEY_DIR
+Override where keypairs are generated (default
+.IR ~/.ssh ).
+.PP
+The
+.I DEVRIG_*
+and
+.I EZENV_*
+names this command used previously are still honoured as fallbacks.
+.SH FILES
+.TP
+.I ~/.gitconfig-<account>
+Per-account git identity, included from your git config for bound directories.
+.TP
+.I ~/.ssh/id_ed25519_<account>
+Per-account ssh key. Generated without a passphrase \(em this is a convenience
+tool, and a passphrase would need agent plumbing on every clone. Protected by
+file permissions only.
+.SH EXAMPLES
+.PP
+.nf
+.RS
+git account add work --email me@work.com --dir ~/code/work --gh-user work-gh
+# paste the printed key into that host account, then:
+git clone git@github.com-work:acme/api.git ~/code/work/api
+git account check
+.RE
+.fi
+.SH SEE ALSO
+.BR git-pr (1),
+.BR gh (1)

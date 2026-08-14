@@ -104,9 +104,9 @@ require_gh() {
 gh_scope_to_repo() {
   [ -n "${GH_TOKEN:-}" ] && return 0
   command -v gh >/dev/null 2>&1 || return 0
-  command -v devrig >/dev/null 2>&1 || return 0
+  command -v git-account >/dev/null 2>&1 || return 0
   local acct tok
-  acct="$(command devrig account _gh-for-dir "$PWD" 2>/dev/null)" || return 0
+  acct="$(git-account _gh-for-dir "$PWD" 2>/dev/null)" || return 0
   [ -n "$acct" ] || return 0
   tok="$(gh auth token --user "$acct" 2>/dev/null)" || return 0
   [ -n "$tok" ] && export GH_TOKEN="$tok"
