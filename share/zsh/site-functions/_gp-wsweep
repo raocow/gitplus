@@ -1,6 +1,6 @@
 #autoload
 #
-# Completion for `git done` — real branches for -b's value.
+# Completion for `gp wsweep` — real branches for -b's value.
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   _message -r 'not inside a git repository'; return
 fi

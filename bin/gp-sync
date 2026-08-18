@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# git-sync — rebase branch(es) onto the latest base and push.
+# gp-sync — rebase branch(es) onto the latest base and push.
 #
-#   git sync                    rebase the CURRENT branch onto origin's default,
+#   gp sync                    rebase the CURRENT branch onto origin's default,
 #                               then push --force-with-lease
-#   git sync <n|branch|url>...  rebase the named branch(es) — a PR number, a head
+#   gp sync <n|branch|url>...  rebase the named branch(es) — a PR number, a head
 #                               branch, a URL, or an "NNN-MMM" range, all mixable
-#   git sync --all              prune merged branches + rebase/push all the rest [-a]
-#   git sync ... -x <ids...>    exclude branch(es)/PR(s) from any form  [--exclude]
-#   git sync -b NAME            use origin/NAME as the base instead
-#   git sync -n                 dry run — print what it would do, change nothing
+#   gp sync --all              prune merged branches + rebase/push all the rest [-a]
+#   gp sync ... -x <ids...>    exclude branch(es)/PR(s) from any form  [--exclude]
+#   gp sync -b NAME            use origin/NAME as the base instead
+#   gp sync -n                 dry run — print what it would do, change nothing
 #
-# The positional/exclude grammar mirrors `git pr merge`: targets may be a PR
+# The positional/exclude grammar mirrors `gp pr merge`: targets may be a PR
 # number, a head-branch name, a PR URL, or an "NNN-MMM" range (a token is a range
 # only if it's ENTIRELY digits-hyphen-digits, so "task-42" passes through), all
 # mixable; -x/--exclude takes the same forms (ranges included) and consumes every
@@ -24,7 +24,7 @@
 # push (you don't force-push the base).
 #
 # When a rebase cannot be completed automatically it reacts exactly like
-# `git pr merge`: it ABORTS the rebase (the branch is left untouched, never half
+# `gp pr merge`: it ABORTS the rebase (the branch is left untouched, never half
 # rebased), skips that branch, and lists it at the end as needing manual
 # resolution — it never drops you into a conflicted rebase and never fails the
 # whole run. Resolve one by hand with:
@@ -35,20 +35,20 @@
 # explicitly gets its remote created on first push; the --all sweep never creates
 # a remote for a purely-local branch (it reports those as rebased-local-only).
 # Squash-merged branches aren't detected as merged, so --all rebases rather than
-# prunes them — delete those yourself (or `git sweep -f`).
+# prunes them — delete those yourself (or `gp sweep -f`).
 #
-# (There is no --method: unlike `git pr merge`, sync only ever rebases — there's
+# (There is no --method: unlike `gp pr merge`, sync only ever rebases — there's
 # no merge-commit/squash choice to make.)
 #
 # Usage:
-#   git sync                        rebase the current branch onto origin's default, push
+#   gp sync                        rebase the current branch onto origin's default, push
 #                                   (on the base branch: pull it — fetch + rebase, no push)
-#   git sync <n|branch|range>...    rebase the given branch(es); "824-830" is a range
-#   git sync --all                  prune merged branches + rebase/push all the rest (-a)
-#   git sync ... -x <ids...>        exclude branch(es)/PR(s) (--exclude; also takes ranges)
-#   git sync -b NAME                use origin/NAME as the base instead
-#   git sync -n                     dry run — print what it would do, change nothing
-#   git sync -h                     show this help
+#   gp sync <n|branch|range>...    rebase the given branch(es); "824-830" is a range
+#   gp sync --all                  prune merged branches + rebase/push all the rest (-a)
+#   gp sync ... -x <ids...>        exclude branch(es)/PR(s) (--exclude; also takes ranges)
+#   gp sync -b NAME                use origin/NAME as the base instead
+#   gp sync -n                     dry run — print what it would do, change nothing
+#   gp sync -h                     show this help
 #
 set -euo pipefail
 
@@ -65,26 +65,26 @@ source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
 
 usage() {
   cat <<'EOF'
-git sync — rebase branch(es) onto the latest base and push.
+gp sync — rebase branch(es) onto the latest base and push.
 
-  git sync                    rebase the CURRENT branch onto origin's default,
+  gp sync                    rebase the CURRENT branch onto origin's default,
                               then push --force-with-lease
-  git sync <n|branch|url>...  rebase the named branch(es): a PR number, a head
+  gp sync <n|branch|url>...  rebase the named branch(es): a PR number, a head
                               branch, a URL, or an "NNN-MMM" range — all mixable
-  git sync --all              prune merged branches + rebase/push all the rest (-a)
-  git sync ... -x <ids...>    exclude branch(es)/PR(s) from any form (--exclude;
+  gp sync --all              prune merged branches + rebase/push all the rest (-a)
+  gp sync ... -x <ids...>    exclude branch(es)/PR(s) from any form (--exclude;
                               also takes ranges — everything after -x is excluded
                               until the next flag)
-  git sync -b NAME            use origin/NAME as the base instead
-  git sync -n                 dry run — print what it would do, change nothing
-  git sync -h                 show this help
+  gp sync -b NAME            use origin/NAME as the base instead
+  gp sync -n                 dry run — print what it would do, change nothing
+  gp sync -h                 show this help
 
-Targets mirror `git pr merge`: a numeric/URL target is resolved to its PR's head
+Targets mirror `gp pr merge`: a numeric/URL target is resolved to its PR's head
 branch via `gh`; a plain branch name is used as-is (offline-friendly).
 
 On the base branch (or a target that IS the base) it acts as a safe pull: fetch +
 rebase, no push. When a rebase can't complete automatically it reacts like
-`git pr merge` — it aborts the rebase, skips that branch, and lists it at the end
+`gp pr merge` — it aborts the rebase, skips that branch, and lists it at the end
 as needing manual resolution (never a half-finished rebase, never a failed run).
 Resolve one by hand with:  git checkout <branch> && git rebase origin/<base>
 EOF
@@ -104,7 +104,7 @@ while [ $# -gt 0 ]; do
     -a|--all) all=1; in_exclude=0 ;;
     -b|--base) shift; base="${1:-}"; in_exclude=0 ;;
     -x|--exclude) in_exclude=1 ;;
-    -*) echo "git sync: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    -*) echo "gp sync: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *)
       if [ "$in_exclude" = 1 ]; then raw_excludes+=("$1"); else raw_targets+=("$1"); fi
       ;;
@@ -113,14 +113,14 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
-  echo "git sync: can't combine --all with specific branches" >&2; exit 2
+  echo "gp sync: can't combine --all with specific branches" >&2; exit 2
 fi
 
-require_git_repo "git sync"
+require_git_repo "gp sync"
 
 current=$(git rev-parse --abbrev-ref HEAD)
 [ "$current" != "HEAD" ] || {
-  echo "git sync: detached HEAD — check out a branch first" >&2; exit 1; }
+  echo "gp sync: detached HEAD — check out a branch first" >&2; exit 1; }
 
 # Base = origin's default branch unless told otherwise (shared with
 # sweep/wsweep/done — this now also gets their main/master + current-branch
@@ -129,7 +129,7 @@ base="$(resolve_base "$base")"
 
 # A rebase needs a clean tree; bail early with a clear message (every mode).
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "git sync: you have uncommitted changes — commit or stash them first" >&2
+  echo "gp sync: you have uncommitted changes — commit or stash them first" >&2
   exit 1
 fi
 
@@ -138,8 +138,8 @@ fi
 # ENTIRELY digits-hyphen-digits, so a branch name like "task-42" passes
 # through untouched. Applied to both targets and excludes so -x accepts
 # ranges too.
-target_ids=();  [ "${#raw_targets[@]}"  -gt 0 ] && expand_ranges "git sync" target_ids  ${raw_targets[@]+"${raw_targets[@]}"}
-exclude_ids=(); [ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges "git sync" exclude_ids ${raw_excludes[@]+"${raw_excludes[@]}"}
+target_ids=();  [ "${#raw_targets[@]}"  -gt 0 ] && expand_ranges "gp sync" target_ids  ${raw_targets[@]+"${raw_targets[@]}"}
+exclude_ids=(); [ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges "gp sync" exclude_ids ${raw_excludes[@]+"${raw_excludes[@]}"}
 
 # A numeric/URL token needs `gh` to become a branch; a plain name doesn't.
 needs_gh() { printf '%s' "$1" | grep -qE '^[0-9]+$|://'; }
@@ -148,7 +148,7 @@ for t in ${target_ids[@]+"${target_ids[@]}"} ${exclude_ids[@]+"${exclude_ids[@]}
   [ -n "$t" ] && needs_gh "$t" && { gh_required=1; break; }
 done
 if [ "$gh_required" = 1 ] && ! command -v gh >/dev/null 2>&1; then
-  echo "git sync: a PR number or URL target needs the GitHub CLI ('gh') — name the branch instead, or install https://cli.github.com" >&2
+  echo "gp sync: a PR number or URL target needs the GitHub CLI ('gh') — name the branch instead, or install https://cli.github.com" >&2
   exit 1
 fi
 
@@ -221,7 +221,7 @@ sync_one() {  # sync_one <branch> <create_remote 0|1>
     fi
   fi
 
-  # The reaction git pr merge has when a rebase can't finish: abort it (leave the
+  # The reaction gp pr merge has when a rebase can't finish: abort it (leave the
   # branch exactly as it was), and record it for the "conflicts" report — never a
   # half-finished rebase left in the tree.
   if ! git -C "$dir" rebase "origin/$base" >/dev/null 2>&1; then

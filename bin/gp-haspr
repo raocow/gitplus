@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# git-haspr — check whether a branch already has a pull request.
+# gp-haspr — check whether a branch already has a pull request.
 #
 # Checks all states (open/closed/merged), not just open, so it also catches
 # "yes, but it was already merged" or "yes, but it got closed" before you go
 # create a duplicate. Exits 0 and prints the PR('s) URL if any exist for the
 # branch, exits 1 with a clear "no PR" message otherwise — so it's usable in
-# scripts (`if git haspr; then ...`).
+# scripts (`if gp haspr; then ...`).
 #
 # Usage:
-#   git haspr           check the current branch
-#   git haspr <branch>  check a specific branch
-#   git haspr -h        show this help
+#   gp haspr           check the current branch
+#   gp haspr <branch>  check a specific branch
+#   gp haspr -h        show this help
 #
 set -euo pipefail
 
@@ -29,40 +29,40 @@ source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
 case "${1:-}" in
   -h|--help)
     cat <<'EOF'
-git haspr — check whether a branch already has a pull request.
+gp haspr — check whether a branch already has a pull request.
 
 Checks every state (open/closed/merged), so it also catches a PR that was
 already merged or closed. Exits 0 and prints the PR(s) if any exist for the
 branch, exits 1 with a clear message otherwise — usable in scripts:
-  if git haspr; then ...; fi
+  if gp haspr; then ...; fi
 
 Usage:
-  git haspr           check the current branch
-  git haspr <branch>  check a specific branch
-  git haspr -h        show this help
+  gp haspr           check the current branch
+  gp haspr <branch>  check a specific branch
+  gp haspr -h        show this help
 EOF
     exit 0 ;;
 esac
 
-require_git_repo "git haspr"
-require_gh "git haspr"
+require_git_repo "gp haspr"
+require_gh "gp haspr"
 gh_scope_to_repo
 
 branch="${1:-}"
 if [ -z "$branch" ]; then
   branch="$(git rev-parse --abbrev-ref HEAD)"
   [ "$branch" != "HEAD" ] || {
-    echo "git haspr: detached HEAD — name a branch" >&2; exit 1; }
+    echo "gp haspr: detached HEAD — name a branch" >&2; exit 1; }
 fi
 
 out="$(gh pr list --head "$branch" --state all --json number,url,state \
   --jq '.[] | "\(.url)  [\(.state)]"' 2>/dev/null)" || {
-  echo "git haspr: couldn't query GitHub for '$branch'" >&2; exit 1; }
+  echo "gp haspr: couldn't query GitHub for '$branch'" >&2; exit 1; }
 
 if [ -n "$out" ]; then
   printf '%s\n' "$out"
   exit 0
 else
-  echo "git haspr: no PR for '$branch'"
+  echo "gp haspr: no PR for '$branch'"
   exit 1
 fi

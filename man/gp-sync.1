@@ -1,8 +1,8 @@
-.TH GIT-SYNC 1 "2026-07-22" "gitplus" "gitplus Manual"
+.TH GP-SYNC 1 "2026-07-22" "gitplus" "gitplus Manual"
 .SH NAME
-git-sync \- rebase branch(es) onto the latest base, then push
+gp-sync \- rebase branch(es) onto the latest base, then push
 .SH SYNOPSIS
-.B git sync
+.B gp sync
 [\fIn\fR|\fIbranch\fR|\fIurl\fR|\fIrange\fR ...]
 [\fB\-a\fR|\fB\-\-all\fR]
 [\fB\-x\fR|\fB\-\-exclude\fR \fIids\fR ...]
@@ -11,7 +11,7 @@ git-sync \- rebase branch(es) onto the latest base, then push
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 With no target,
-.B git sync
+.B gp sync
 rebases the current branch onto the latest base and pushes it:
 .B git fetch
 \(->
@@ -22,7 +22,7 @@ Force-with-lease is used because a rebase rewrites history; it still refuses to
 clobber remote commits you have not fetched. The command requires a clean tree.
 .PP
 Targets mirror
-.BR "git pr merge" :
+.BR "gp pr merge" :
 one or more of a PR number, a head-branch name, a PR URL, or an
 .RI \(dq NNN\-MMM \(dq
 range of PR numbers, all mixable. A token is treated as a range only if it is
@@ -34,15 +34,15 @@ a plain branch name is used as-is with no network, so naming branches directly
 works offline. Each named branch is rebased onto the base and pushed.
 .PP
 On the base branch \(em or when a named target IS the base \(em
-.B git sync
+.B gp sync
 acts as a safe pull instead: it fetches and rebases local <base> onto
 .IR origin/<base> ,
 fast-forwarding when you are only behind. It never pushes the base.
 .PP
 When a rebase cannot be completed automatically,
-.B git sync
+.B gp sync
 reacts exactly like
-.BR "git pr merge" :
+.BR "gp pr merge" :
 it aborts the rebase (the branch is left untouched, never half rebased), skips
 that branch, and lists it at the end as needing manual resolution. It never
 drops you into a conflicted rebase and never fails the whole run. Resolve one by
@@ -55,7 +55,7 @@ sweep never creates a remote for a purely-local branch. The base defaults to
 origin's default branch. There is no
 .B \-\-method
 option \(em unlike
-.BR "git pr merge" ,
+.BR "gp pr merge" ,
 sync only ever rebases.
 .SH OPTIONS
 .TP
@@ -65,7 +65,7 @@ branches already merged into
 .IR origin/<base> ,
 and rebase + push the rest. Squash-merged branches look unmerged, so they are
 rebased rather than pruned \(em delete those with
-.BR "git sweep \-f" .
+.BR "gp sweep \-f" .
 Cannot be combined with explicit targets.
 .TP
 .BR \-x ", " \-\-exclude " " \fIids\fR ...
@@ -87,20 +87,20 @@ Print what would happen without changing anything.
 Show usage and exit.
 .SH EXAMPLES
 .TP
-.B git sync
+.B gp sync
 Rebase the current branch onto origin's default and push.
 .TP
-.B git sync 824 feat/login
+.B gp sync 824 feat/login
 Sync PR #824's head branch and the local branch
 .IR feat/login .
 .TP
-.B git sync 824-830 -x 827
+.B gp sync 824-830 -x 827
 Sync PRs #824 through #830, except #827.
 .TP
-.B git sync \-\-all
+.B gp sync \-\-all
 Prune merged branches and rebase/push all the rest.
 .SH SEE ALSO
-.BR git-pr (1),
-.BR git-sweep (1),
-.BR git-done (1),
+.BR gp-pr (1),
+.BR gp-sweep (1),
+.BR gp-done (1),
 .BR git-rebase (1)

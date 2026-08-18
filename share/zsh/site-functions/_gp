@@ -1,0 +1,32 @@
+#compdef gp
+
+local curcontext="$curcontext" line state
+
+_arguments -C \
+  '1: :->cmd' \
+  '*::arg:->args'
+
+case $state in
+  cmd)
+    local -a commands=(
+      'pr:GitHub pull requests'
+      'sweep:delete merged branches'
+      'done:finish current branch'
+      'sync:rebase branches onto base'
+      'swap:switch worktree or branch'
+      'new:create a branch'
+      'release:tag and release'
+      'account:per-directory identities'
+      'haspr:check for open PR'
+      'wsweep:delete stale worktrees'
+      'help:show help'
+      'version:print version'
+    )
+    _describe 'gp command' commands
+    ;;
+  args)
+    local subcmd=$line[1]
+    local completion="_gp-${subcmd}"
+    (( $+functions[$completion] )) && $completion
+    ;;
+esac

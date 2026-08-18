@@ -1,6 +1,6 @@
 #autoload
 #
-# Completion for `git sync` — real branches/PRs for targets and -b/-x values.
+# Completion for `gp sync` — real branches/PRs for targets and -b/-x values.
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   _message -r 'not inside a git repository'; return
 fi

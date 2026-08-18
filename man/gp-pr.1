@@ -1,34 +1,34 @@
-.TH GIT-PR 1 "2026-07-22" "gitplus" "gitplus Manual"
+.TH GP-PR 1 "2026-07-22" "gitplus" "gitplus Manual"
 .SH NAME
-git-pr \- list, check out, merge, close, or revert pull requests
+gp-pr \- list, check out, merge, close, or revert pull requests
 .SH SYNOPSIS
-.B git pr
+.B gp pr
 [\fB\-nt\fR|\fB\-\-no\-title\fR]
 [\fB\-c\fR|\fB\-\-copy\fR]
 [\fB\-g\fR|\fB\-\-global\fR]
 .br
-.B git pr
+.B gp pr
 .I NUMBER
 .br
-.B git pr
+.B gp pr
 .B list
 .RI [ ID " ...]"
 [\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
 .br
-.B git pr
+.B gp pr
 .B unmerge
 .RI [ ID " ...]"
 [\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 .br
-.B git pr
+.B gp pr
 .B close
 .RI [ ID " ...]"
 [\fB\-a\fR|\fB\-\-all\fR]
 [\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 .br
-.B git pr
+.B gp pr
 .B merge
 .RI [ ID " ...]"
 [\fB\-a\fR|\fB\-\-all\fR]
@@ -37,11 +37,11 @@ git-pr \- list, check out, merge, close, or revert pull requests
 [\fB\-\-method\fR \fIMETHOD\fR]
 [\fB\-s\fR|\fB\-m\fR|\fB\-r\fR]
 .br
-.B git pr
+.B gp pr
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 With no number,
-.B git pr
+.B gp pr
 lists the open pull requests you have authored in the current repository, one
 per line as
 .IR "<url> -- <title>" .
@@ -52,7 +52,7 @@ it prints just the URLs, one per line, for easy piping. Listing uses
 .PP
 Given a
 .IR NUMBER ,
-.B git pr
+.B gp pr
 checks out that PR's branch, always up to date: it runs
 .BR "gh pr checkout" ,
 which creates the branch or fast-forwards an existing local branch to the PR's
@@ -64,16 +64,16 @@ which GitHub keeps around. If the branch is already checked out in another
 worktree (a branch can only be checked out in one worktree at a time), that
 worktree's HEAD is detached first \(em safe, its working tree is untouched
 \(em freeing the branch to check out here instead of refusing (see
-.BR git-swap (1)).
+.BR gp-swap (1)).
 .PP
 Branches are stamped with their PR number
 .RB ( "branch.<name>.gitplus-pr" ),
 so if the GitHub CLI cannot reach GitHub,
-.B git pr <NUMBER>
+.B gp pr <NUMBER>
 falls back to switching to the stamped local branch as-is (without updating it),
 letting checkout still work offline.
 .PP
-.B git pr list
+.B gp pr list
 .I ID
 .RI [ ID " ...]"
 shows the title/link for the given PR(s) instead of checking one out \(em any
@@ -83,7 +83,7 @@ without touching your working tree.
 can be a PR number, head branch name, PR URL, or an
 .I NNN-MMM
 range (see
-.B git pr merge
+.B gp pr merge
 below for the exact range syntax); naming PRs this way is not scoped to
 you, and shows every state (open, closed, merged), not just open.
 .PP
@@ -97,11 +97,11 @@ meaning the branch you are currently on \(em the PR for the current branch,
 the same idea as
 .B gh pr view
 with no argument. It works anywhere an ID is accepted:
-.B git pr list .
+.B gp pr list .
 shows the current branch's PR,
-.B git pr .
+.B gp pr .
 checks it out,
-.B git pr merge .
+.B gp pr merge .
 merges it, and
 .B \-x .
 excludes it. On a detached HEAD there is no current branch, so
@@ -109,36 +109,36 @@ excludes it. On a detached HEAD there is no current branch, so
 /
 .B @
 is an error there. Bare
-.B git pr
+.B gp pr
 and
-.B git pr list
+.B gp pr list
 with no ID still list all your open PRs \(em this is an explicit extra token,
 not a change to the default.
 .RB ( \-x / \-\-exclude
 works the same as under
-.BR "git pr merge" ; " " \-a / \-\-all
+.BR "gp pr merge" ; " " \-a / \-\-all
 is also accepted here, explicitly meaning "your open PRs" \(em the same thing
 as giving no IDs at all, spelled out for symmetry with
-.BR "git pr merge \-\-all" .)
+.BR "gp pr merge \-\-all" .)
 IDs that cannot be a checkout \(em two or more of them, a range, or
 .B \-x
 \(em are an
 .BR error ,
 not an implicit list. They used to list, which meant the same command shape
 did two unrelated things one character apart:
-.B git pr 422
+.B gp pr 422
 changed your working tree while
-.B git pr 422-423
+.B gp pr 422-423
 printed a list and touched nothing. That difference is too sharp to hinge on
 how many arguments you happened to type, so those forms now fail with a
 pointer to
-.BR "git pr list" .
+.BR "gp pr list" .
 Bare
-.B git pr
+.B gp pr
 with no IDs still lists your open pull requests.
 .PP
 Named
-.I git pr
+.I gp pr
 rather than
 .IR git switch :
 git always prefers its built-in
@@ -146,13 +146,13 @@ git always prefers its built-in
 over a script, so a custom
 .I git-switch
 could never run. This is also why merging is the subcommand
-.BR "git pr merge" ,
+.BR "gp pr merge" ,
 rather than a flag \(em a subcommand needed a name, and a plain
 .I MERGE
 would collide with the checkout form for anyone with a branch literally named
 .IR merge .
-.SS "git pr merge: merge one or more pull requests"
-.B git pr merge
+.SS "gp pr merge: merge one or more pull requests"
+.B gp pr merge
 .I ID
 .RI [ ID " ...]"
 merges exactly the PR(s) you name \(em each
@@ -181,7 +181,7 @@ after the IDs (or after
 it applies to. An exclude that does not resolve to an open PR is simply a
 no-op, not an error.
 .PP
-.B git pr merge \-\-all
+.B gp pr merge \-\-all
 (or
 .BR \-a ,
 with no IDs) is the broad-sweep form: it merges every mergeable PR
@@ -191,7 +191,7 @@ your own PRs only \(em merging someone else's work is not a sweep's call to
 make.
 .PP
 Either way,
-.B git pr merge
+.B gp pr merge
 touches shared remote state (it merges PRs on GitHub), and it acts by default;
 pass
 .B \-n
@@ -263,7 +263,7 @@ Equivalently: each id takes the method of the nearest method flag to its
 and an id with none uses the default. So
 .PP
 .RS
-.B git pr merge 12-31 \-\-merge 42 43-51 \-s
+.B gp pr merge 12-31 \-\-merge 42 43-51 \-s
 .RE
 .PP
 merges #12-31 with a merge commit and squashes #42 and #43-51:
@@ -281,16 +281,16 @@ lists the method chosen for each pull request, so a mixed run can always be
 checked before it acts.
 .PP
 Branches are never deleted after merging \(em run
-.BR git-sweep (1)
+.BR gp-sweep (1)
 afterward for that.
-.SS "git pr close: close one or more pull requests without merging"
-.B git pr close
+.SS "gp pr close: close one or more pull requests without merging"
+.B gp pr close
 .I ID
 .RI [ ID " ...]"
 closes exactly the PR(s) you name, using the same
 .I ID
 grammar as
-.B "git pr merge"
+.B "gp pr merge"
 \(em numbers, head branch names, URLs,
 .I NNN-MMM
 ranges, and
@@ -301,7 +301,7 @@ excluding from the set the same way, and
 .B \-n
 previewing without changing anything.
 .PP
-.B git pr close \-\-all
+.B gp pr close \-\-all
 (or
 .BR \-a ,
 with no IDs) closes every open PR
@@ -314,10 +314,10 @@ Closing is far simpler than merging: each PR is independent, so there is no
 conflict ordering to compute and nothing to rebase, and a failure on one PR is
 reported without stopping the rest. It is also reversible \(em a closed PR can
 be reopened. Branches are left alone; use
-.BR git-sweep (1)
+.BR gp-sweep (1)
 for those.
-.SS "git pr unmerge: revert one or more merged pull requests"
-.B git pr unmerge
+.SS "gp pr unmerge: revert one or more merged pull requests"
+.B gp pr unmerge
 .I ID
 .RI [ ID " ...]"
 reverts PR(s) that have already landed, by opening a
@@ -355,7 +355,7 @@ When listing, print bare URLs (one per line) instead of
 .TP
 .BR \-c ", " \-\-copy
 When listing, also copy the listing to the clipboard. Not valid with
-.BR "git pr merge" .
+.BR "gp pr merge" .
 .TP
 .BR \-g ", " \-\-global
 List every open pull request you have anywhere, under every account you are
@@ -368,40 +368,40 @@ is queried with its own token, so this never changes
 active account. Listing only: takes no IDs, no
 .BR \-x ,
 and is not valid with
-.BR "git pr merge" .
+.BR "gp pr merge" .
 .TP
 .BR \-a ", " \-\-all
 With
-.BR "git pr merge" ,
+.BR "gp pr merge" ,
 merge every mergeable PR you authored instead of specific ones; with
-.BR "git pr close" ,
+.BR "gp pr close" ,
 close every open PR you authored. With
-.B "git pr"
+.B "gp pr"
 or
-.BR "git pr list" ,
+.BR "gp pr list" ,
 an explicit way to say "your open PRs" (the same as giving no IDs). Cannot be
 combined with explicit IDs, in any case.
 .TP
 .BR \-x ", " \-\-exclude " " \fIID\fR " ..."
 With
-.BR "git pr merge" ,
+.BR "gp pr merge" ,
 drop the given ID(s) \(em number, branch, URL, or range \(em from the targeted
 set. Consumes all following bare arguments until the next flag.
 .TP
 .BR \-n ", " \-\-dry\-run
 With
-.BR "git pr merge" ,
+.BR "gp pr merge" ,
 preview the plan without changing anything.
 .TP
 .BR \-\-method " " \fIMETHOD\fR
 With
-.BR "git pr merge" ,
+.BR "gp pr merge" ,
 .IR merge ", " squash ", or " rebase ,
 overriding the repository's default merge method for the whole run.
 .TP
 .BR \-s ", " \-\-squash ", " \-m ", " \-\-merge ", " \-r ", " \-\-rebase
 With
-.BR "git pr merge" ,
+.BR "gp pr merge" ,
 set the merge method for individual pull requests rather than the whole run.
 Applies backward, to every id to its left not already claimed by another
 method flag \(em see
@@ -418,36 +418,36 @@ authenticated for the repository
 already-stamped branch) works without it.
 .SH EXAMPLES
 .TP
-.B git pr
+.B gp pr
 List your open PRs as
 .IR "<url> -- <title>" .
 .TP
-.B git pr \-nt | pbcopy
+.B gp pr \-nt | pbcopy
 Copy just the PR links to the clipboard.
 .TP
-.B git pr 923
+.B gp pr 923
 Check out PR #923's branch, updated to its latest.
 .TP
-.B git pr merge 923 task/other-thing
+.B gp pr merge 923 task/other-thing
 Merge PR #923 and the PR whose head branch is
 .IR task/other-thing ,
 in whichever order has fewer conflicts.
 .TP
-.B git pr merge 824\-830 \-x 825 827
+.B gp pr merge 824\-830 \-x 825 827
 Merge PRs #824 through #830, except #825 and #827.
 .TP
-.B git pr merge \-\-all
+.B gp pr merge \-\-all
 Merge everything mergeable of yours, rebasing and skipping as needed.
 .TP
-.B git pr merge \-\-all \-x 825 827
+.B gp pr merge \-\-all \-x 825 827
 Same, but skip #825 and #827 even if they are yours and otherwise mergeable.
 .TP
-.B git pr merge \-\-all \-n
+.B gp pr merge \-\-all \-n
 Preview the merge order and what would happen to each of your open PRs.
 Changes nothing.
 .SH SEE ALSO
-.BR git-done (1),
-.BR git-sync (1),
-.BR git-sweep (1),
-.BR git-swap (1),
+.BR gp-done (1),
+.BR gp-sync (1),
+.BR gp-sweep (1),
+.BR gp-swap (1),
 .BR gh (1)

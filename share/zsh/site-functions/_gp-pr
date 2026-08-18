@@ -1,6 +1,6 @@
 #autoload
 #
-# Completion for `git pr` (list / checkout / merge). Candidates are real open
+# Completion for `gp pr` (list / checkout / merge). Candidates are real open
 # PRs (shown with their titles) and real branches — nothing generated or
 # guessed. '.'/'@' (the current branch) is offered everywhere an id is
 # accepted. Flags are only offered once you type a leading '-', so a bare TAB

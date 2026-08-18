@@ -1,18 +1,18 @@
-.TH GIT-RELEASE 1 "2026-07-29" "gitplus" "gitplus Manual"
+.TH GP-RELEASE 1 "2026-07-29" "gitplus" "gitplus Manual"
 .SH NAME
-git-release \- tag the current commit and publish a GitHub release for it
+gp-release \- tag the current commit and publish a GitHub release for it
 .SH SYNOPSIS
-.B git release
+.B gp release
 .I VERSION
 [\fB\-\-notes\fR \fITEXT\fR]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 .br
-.B git release
+.B gp release
 \fB\-\-major\fR|\fB\-\-minor\fR|\fB\-\-patch\fR
 [\fB\-\-notes\fR \fITEXT\fR]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 .br
-.B git release
+.B gp release
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 Automates the flow a GitHub release actually needs: an annotated tag, a push
@@ -77,16 +77,16 @@ authenticated for the repository
 .RB ( "gh auth login" ).
 .SH EXAMPLES
 .TP
-.B git release v1.3.0
+.B gp release v1.3.0
 Tag and release an explicit version.
 .TP
-.B git release --patch
+.B gp release --patch
 Bump the latest tag's patch version and release it.
 .TP
-.B git release --minor --notes "New git swap command"
+.B gp release --minor --notes "New gp swap command"
 Bump the minor version with hand-written release notes.
 .TP
-.B git release --major -n
+.B gp release --major -n
 Preview a major-version bump without changing anything.
 .SH SEE ALSO
 .BR git-tag (1),

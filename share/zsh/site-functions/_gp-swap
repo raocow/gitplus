@@ -1,6 +1,6 @@
 #autoload
 #
-# Completion for `git swap` — the two things it actually takes: real branches
+# Completion for `gp swap` — the two things it actually takes: real branches
 # and real worktree names (plus '.'/'@' for the current branch). Both groups
 # are offered together since either is a valid way to name the same target.
 # Flags only surface once you type a leading '-', so a bare TAB leads with

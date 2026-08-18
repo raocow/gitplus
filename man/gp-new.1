@@ -1,15 +1,15 @@
-.TH GIT-NEW 1 "2026-07-23" "gitplus" "gitplus Manual"
+.TH GP-NEW 1 "2026-07-23" "gitplus" "gitplus Manual"
 .SH NAME
-git-new \- create a branch and switch to it
+gp-new \- create a branch and switch to it
 .SH SYNOPSIS
-.B git new
+.B gp new
 .I NAME
 .br
-.B git new
+.B gp new
 [\fB\-b\fR|\fB\-\-base\fR \fIBASE\fR]
 .I NAME
 .br
-.B git new
+.B gp new
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 A thin wrapper around
@@ -24,7 +24,7 @@ is given.
 .PP
 Its real point is Tab-completion, not the wrapping: with the gitplus zsh
 completions enabled,
-.B "git new"
+.B "gp new"
 cycles through short words already used in this repository's existing branch
 names (via
 .BR _multi_parts ),
@@ -45,12 +45,12 @@ instead of the current branch.
 Show usage and exit.
 .SH EXAMPLES
 .TP
-.B git new fix-md-crash
+.B gp new fix-md-crash
 Create and switch to
 .IR fix-md-crash ,
 branching from the current branch.
 .TP
-.B git new \-b main hotfix-timeout
+.B gp new \-b main hotfix-timeout
 Create and switch to
 .IR hotfix-timeout ,
 branching from

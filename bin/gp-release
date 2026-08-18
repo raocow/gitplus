@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# git-release — tag the current commit and publish a GitHub release for it.
+# gp-release — tag the current commit and publish a GitHub release for it.
 #
 # Automates the flow this project's own releases have used by hand: tag,
 # push the tag, `gh release create`. A `git tag` + `git push origin <tag>`
@@ -14,15 +14,15 @@
 # commits since the last release) — auto or manual, independently, for both.
 #
 # Usage:
-#   git release <version>                 tag+release an explicit version (e.g. v1.3.0)
-#   git release --major|--minor|--patch   bump the latest vX.Y.Z tag instead
-#   git release ... --notes "text"        use these release notes (default: auto-generated)
-#   git release -n|--dry-run              preview only, change nothing
-#   git release -h                        show this help
+#   gp release <version>                 tag+release an explicit version (e.g. v1.3.0)
+#   gp release --major|--minor|--patch   bump the latest vX.Y.Z tag instead
+#   gp release ... --notes "text"        use these release notes (default: auto-generated)
+#   gp release -n|--dry-run              preview only, change nothing
+#   gp release -h                        show this help
 #
 # Refuses to run with uncommitted changes, or if the current branch has
 # diverged from its origin tracking branch (a release should tag something
-# that's actually pushed) — same safety posture as `git sync`.
+# that's actually pushed) — same safety posture as `gp sync`.
 #
 set -euo pipefail
 
@@ -39,18 +39,18 @@ source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
 
 usage() {
   cat <<'EOF'
-git release — tag the current commit and publish a GitHub release for it.
+gp release — tag the current commit and publish a GitHub release for it.
 
 Automates tag + push + `gh release create` — a plain tag push alone doesn't
 create a visible GitHub Release, that's a separate step this always does.
 
 Usage:
-  git release <version>                 tag+release an explicit version (e.g. v1.3.0)
-  git release --major|--minor|--patch   bump the latest vX.Y.Z tag instead
-  git release ... --notes "text"        use these release notes (default: auto-generated
+  gp release <version>                 tag+release an explicit version (e.g. v1.3.0)
+  gp release --major|--minor|--patch   bump the latest vX.Y.Z tag instead
+  gp release ... --notes "text"        use these release notes (default: auto-generated
                                          by `gh release create --generate-notes`)
-  git release -n|--dry-run              preview only, change nothing
-  git release -h                        show this help
+  gp release -n|--dry-run              preview only, change nothing
+  gp release -h                        show this help
 
 Refuses uncommitted changes, or a current branch that's diverged from its
 origin tracking branch — a release should tag something that's actually
@@ -69,10 +69,10 @@ while [ $# -gt 0 ]; do
     --major|--minor|--patch) bump="${1#--}" ;;
     --notes) shift; notes="${1:-}"; notes_given=1 ;;
     -n|--dry-run) dry=1 ;;
-    -*) echo "git release: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    -*) echo "gp release: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *)
       if [ -n "$version" ]; then
-        echo "git release: only one version allowed" >&2; exit 2
+        echo "gp release: only one version allowed" >&2; exit 2
       fi
       version="$1" ;;
   esac
@@ -80,18 +80,18 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -n "$version" ] && [ -n "$bump" ]; then
-  echo "git release: can't combine an explicit version with --major/--minor/--patch" >&2; exit 2
+  echo "gp release: can't combine an explicit version with --major/--minor/--patch" >&2; exit 2
 fi
 if [ -z "$version" ] && [ -z "$bump" ]; then
-  echo "git release: specify a version (e.g. v1.3.0) or --major/--minor/--patch to bump the latest tag" >&2; exit 2
+  echo "gp release: specify a version (e.g. v1.3.0) or --major/--minor/--patch to bump the latest tag" >&2; exit 2
 fi
 
-require_git_repo "git release"
-require_gh "git release"
+require_git_repo "gp release"
+require_gh "gp release"
 gh_scope_to_repo
 
 if [ -n "$(git status --porcelain)" ]; then
-  echo "git release: you have uncommitted changes — commit or stash them first" >&2
+  echo "gp release: you have uncommitted changes — commit or stash them first" >&2
   exit 1
 fi
 
@@ -99,17 +99,17 @@ git fetch --quiet origin 2>/dev/null || true
 
 current="$(git rev-parse --abbrev-ref HEAD)"
 [ "$current" != "HEAD" ] || {
-  echo "git release: detached HEAD — check out a branch first" >&2; exit 1; }
+  echo "gp release: detached HEAD — check out a branch first" >&2; exit 1; }
 
 if git show-ref --verify --quiet "refs/remotes/origin/$current"; then
   local_sha="$(git rev-parse HEAD)"
   remote_sha="$(git rev-parse "origin/$current")"
   if [ "$local_sha" != "$remote_sha" ]; then
-    echo "git release: '$current' and 'origin/$current' differ — push first" >&2
+    echo "gp release: '$current' and 'origin/$current' differ — push first" >&2
     exit 1
   fi
 else
-  echo "git release: '$current' has no origin tracking branch — push it first" >&2
+  echo "gp release: '$current' has no origin tracking branch — push it first" >&2
   exit 1
 fi
 
@@ -120,7 +120,7 @@ latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1
 
 if [ -n "$bump" ]; then
   if [ -z "$latest_tag" ]; then
-    echo "git release: no existing vX.Y.Z tag to bump from — specify an explicit version instead" >&2
+    echo "gp release: no existing vX.Y.Z tag to bump from — specify an explicit version instead" >&2
     exit 1
   fi
   ver="${latest_tag#v}"
@@ -137,7 +137,7 @@ fi
 
 case "$version" in
   v[0-9]*.[0-9]*.[0-9]*) ;;
-  *) echo "git release: '$version' doesn't look like vX.Y.Z" >&2; exit 2 ;;
+  *) echo "gp release: '$version' doesn't look like vX.Y.Z" >&2; exit 2 ;;
 esac
 
 # A tag that already exists but has no GitHub release yet means a previous
@@ -147,7 +147,7 @@ esac
 tag_exists=0
 git rev-parse --verify --quiet "refs/tags/$version" >/dev/null 2>&1 && tag_exists=1
 if [ "$tag_exists" = 1 ] && gh release view "$version" >/dev/null 2>&1; then
-  echo "git release: '$version' already exists as both a tag and a GitHub release" >&2
+  echo "gp release: '$version' already exists as both a tag and a GitHub release" >&2
   exit 1
 fi
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# git-done — switch back to the base branch and delete the branch you left.
+# gp-done — switch back to the base branch and delete the branch you left.
 #
-# The bookend to `git pr`: after you've checked out a PR's branch and finished
-# reviewing it, `git done` returns you to the base (origin's default, usually
+# The bookend to `gp pr`: after you've checked out a PR's branch and finished
+# reviewing it, `gp done` returns you to the base (origin's default, usually
 # main), fast-forwards it to the latest on origin, and deletes the branch you
 # were on.
 #
@@ -30,11 +30,11 @@
 # (fetches and fast-forwards the base to origin).
 #
 # Usage:
-#   git done            switch to the base branch, delete the branch you left
-#   git done -f         force-delete (unmerged / squash-merged branches)
-#   git done -b NAME    switch to NAME as the base instead of origin's default
-#   git done -n         dry run — print what it would do, change nothing
-#   git done -h         show this help
+#   gp done            switch to the base branch, delete the branch you left
+#   gp done -f         force-delete (unmerged / squash-merged branches)
+#   gp done -b NAME    switch to NAME as the base instead of origin's default
+#   gp done -n         dry run — print what it would do, change nothing
+#   gp done -h         show this help
 #
 set -euo pipefail
 
@@ -70,9 +70,9 @@ _ff_base() {
 
 usage() {
   cat <<'EOF'
-git done — switch back to the base branch and delete the branch you left.
+gp done — switch back to the base branch and delete the branch you left.
 
-The bookend to `git pr`: after reviewing a checked-out PR branch, return to the
+The bookend to `gp pr`: after reviewing a checked-out PR branch, return to the
 base (origin's default, usually main), fast-forward it to origin, and delete the
 branch you were on.
 
@@ -90,11 +90,11 @@ Already on the base branch? There's nothing to delete, so it just pulls (fetch
 + fast-forward the base to origin).
 
 Usage:
-  git done          switch to the base branch, delete the branch you left
-  git done -f       force-delete (unmerged / squash-merged branches)
-  git done -b NAME  use NAME as the base instead of origin's default
-  git done -n       dry run — print what it would do, change nothing
-  git done -h       show this help
+  gp done          switch to the base branch, delete the branch you left
+  gp done -f       force-delete (unmerged / squash-merged branches)
+  gp done -b NAME  use NAME as the base instead of origin's default
+  gp done -n       dry run — print what it would do, change nothing
+  gp done -h       show this help
 EOF
 }
 
@@ -107,12 +107,12 @@ while [ $# -gt 0 ]; do
     -f|--force) force=1 ;;
     -b|--base) shift; base="${1:-}" ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "git done: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    *) echo "gp done: unknown option '$1' (try -h)" >&2; exit 2 ;;
   esac
   shift
 done
 
-require_git_repo "git done"
+require_git_repo "gp done"
 
 # On a detached HEAD there's no branch to delete — we still switch back to base,
 # just skip the deletion at the end.
@@ -125,7 +125,7 @@ base="$(resolve_base "$base")"
 
 git show-ref --verify --quiet "refs/heads/$base" \
   || git show-ref --verify --quiet "refs/remotes/origin/$base" || {
-  echo "git done: base '$base' not found locally or on origin" >&2; exit 1; }
+  echo "gp done: base '$base' not found locally or on origin" >&2; exit 1; }
 
 # Already on the base: there's no branch to delete, so just bring it up to date
 # — fetch and fast-forward it to origin (a pull), then stop.
@@ -173,7 +173,7 @@ fi
 # this ("merged to 'refs/remotes/origin/<branch>', but not yet merged to
 # HEAD") — but that's precisely the case this command exists to refuse, not
 # warn about and delete anyway. So mergedness into $base is checked
-# explicitly here (same fix already applied in git-sweep for a related
+# explicitly here (same fix already applied in gp-sweep for a related
 # reason), and -D used either way, since by this point safety has already
 # been verified ourselves.
 #

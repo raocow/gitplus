@@ -21,7 +21,7 @@
 # difference from the keychain-only default.
 #
 # Note git is unaffected either way: it authenticates through the osxkeychain
-# credential helper (or an ssh alias — see `git account`), not through gh's
+# credential helper (or an ssh alias — see `gp account`), not through gh's
 # active account, so `git push`/`git fetch` never depended on this.
 #
 # Unbound directories are bound AUTOMATICALLY, on evidence rather than a
@@ -40,11 +40,11 @@ typeset -g  _gitplus_gh_account=""
 
 _gitplus_ghswitch() {
   command -v gh >/dev/null 2>&1 || return 0
-  command -v git-account >/dev/null 2>&1 || return 0
+  command -v gp-account >/dev/null 2>&1 || return 0
 
-  # `git-account` throughout: the wrapper function below calls back into
+  # `gp-account` throughout: the wrapper function below calls back into
   # this hook, so going through it here would recurse forever.
-  local want; want="$(command git-account _gh-for-dir "$PWD" 2>/dev/null)"
+  local want; want="$(command gp-account _gh-for-dir "$PWD" 2>/dev/null)"
 
   if [[ -n "$want" ]]; then
     [[ "$_gitplus_gh_account" == "$want" ]] && return 0
@@ -54,7 +54,7 @@ _gitplus_ghswitch() {
       [[ -n "$tok" ]] && _gitplus_tok_cache[$want]="$tok"
     fi
     # Not logged in as that account — leave whatever's in effect alone rather
-    # than half-applying. `git account check` reports this properly.
+    # than half-applying. `gp account check` reports this properly.
     [[ -n "$tok" ]] || return 0
     export GH_TOKEN="$tok"
     _gitplus_gh_account="$want"
@@ -71,21 +71,21 @@ _gitplus_ghswitch() {
   [[ -n "${_gitplus_ghswitch_seen[$PWD]:-}" ]] && return 0
   _gitplus_ghswitch_seen[$PWD]=1
   local pick
-  pick="$(command git-account _access-for-dir "$PWD" first 2>/dev/null)"
+  pick="$(command gp-account _access-for-dir "$PWD" first 2>/dev/null)"
   [[ -n "$pick" ]] || return 0
   local root; root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
   [[ -n "$root" ]] || return 0
-  command git-account bind "$pick" "$root" >/dev/null 2>&1 || return 0
-  print -u2 "gitplus: bound ${root:t} to '$pick' (the account with push access here) — change it with: git-account bind <name> ${root}"
+  command gp-account bind "$pick" "$root" >/dev/null 2>&1 || return 0
+  print -u2 "gitplus: bound ${root:t} to '$pick' (the account with push access here) — change it with: gp account bind <name> ${root}"
   _gitplus_ghswitch   # apply the binding we just made to this shell
 }
 
-# `git-account bind`/`add --dir` can change which account applies to the
+# `gp-account bind`/`add --dir` can change which account applies to the
 # current directory, but it runs as a subprocess and so can't export into this
 # shell. Re-running the hook afterward applies it immediately, instead of the
 # binding appearing to do nothing until the next cd.
-git-account() {
-  command git-account "$@"
+gp-account() {
+  command gp-account "$@"
   local rc=$?
   # Guarded because this wrapper can outlive its hook. Tooling that snapshots
   # and replays a shell's functions (Claude Code does exactly this) can
@@ -100,3 +100,14 @@ git-account() {
 autoload -U add-zsh-hook 2>/dev/null
 add-zsh-hook chpwd _gitplus_ghswitch
 _gitplus_ghswitch  # run once for the current directory
+
+# Same wrapper for `gp account ...` — the `gp` dispatcher execs gp-account
+# directly, so without this the shell hook wouldn't re-evaluate.
+gp() {
+  if [[ "${1:-}" == account ]]; then
+    shift
+    gp-account "$@"
+    return $?
+  fi
+  command gp "$@"
+}

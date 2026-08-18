@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# git-sweep — delete local branches already merged into the base branch.
+# gp-sweep — delete local branches already merged into the base branch.
 #
 # Fetches first and compares against the base's REMOTE tip (origin/<base>), so it
 # works without pulling the base locally and from any branch you're on — a branch
@@ -43,15 +43,15 @@
 # reason.
 #
 # Usage:
-#   git sweep            delete local branches merged into the base (safe, -d)
-#   git sweep <branch...> delete just the given branch(es) (safe unless -f)
-#   git sweep -f         force: -D every local branch except base + current
-#   git sweep -r         sweep branches on origin instead of local (--remote)
-#   git sweep -l         local only — the default, spelled out (--local)
-#   git sweep -rl        both local and origin (short flags bundle)
-#   git sweep -n         dry run — list what would be deleted, change nothing
-#   git sweep -b NAME    base branch to compare against (default: origin's default)
-#   git sweep -h         show this help
+#   gp sweep            delete local branches merged into the base (safe, -d)
+#   gp sweep <branch...> delete just the given branch(es) (safe unless -f)
+#   gp sweep -f         force: -D every local branch except base + current
+#   gp sweep -r         sweep branches on origin instead of local (--remote)
+#   gp sweep -l         local only — the default, spelled out (--local)
+#   gp sweep -rl        both local and origin (short flags bundle)
+#   gp sweep -n         dry run — list what would be deleted, change nothing
+#   gp sweep -b NAME    base branch to compare against (default: origin's default)
+#   gp sweep -h         show this help
 #
 set -euo pipefail
 
@@ -68,7 +68,7 @@ source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
 
 usage() {
   cat <<'EOF'
-git sweep — delete local branches already merged into the base branch.
+gp sweep — delete local branches already merged into the base branch.
 
 Safe by default: only deletes branches already merged into the base's remote
 tip (verified with merge-base), so it never drops unmerged work — and unlike a
@@ -92,18 +92,18 @@ so preview with -n first — and note -rf force-deletes UNMERGED branches from
 the remote, where a mistake affects everyone, not just you.
 
 Usage:
-  git sweep            delete local branches merged into the base (safe, -d)
-  git sweep <branch...> delete just the given branch(es) (safe unless -f)
-  git sweep -f         force: -D every local branch except base + current
-  git sweep -r         sweep branches on origin instead of local (--remote)
-  git sweep -l         local only — the default, spelled out (--local)
-  git sweep -rl        both local and origin
-  git sweep -n         dry run — list what would be deleted, change nothing
-  git sweep -b NAME    base branch to compare against (default: origin's default)
-  git sweep -h         show this help
+  gp sweep            delete local branches merged into the base (safe, -d)
+  gp sweep <branch...> delete just the given branch(es) (safe unless -f)
+  gp sweep -f         force: -D every local branch except base + current
+  gp sweep -r         sweep branches on origin instead of local (--remote)
+  gp sweep -l         local only — the default, spelled out (--local)
+  gp sweep -rl        both local and origin
+  gp sweep -n         dry run — list what would be deleted, change nothing
+  gp sweep -b NAME    base branch to compare against (default: origin's default)
+  gp sweep -h         show this help
 
-  -f, -n, -r and -l combine, and bundle: `git sweep -rln` previews a sweep of
-  both sides; `git sweep -f -n` previews the force sweep.
+  -f, -n, -r and -l combine, and bundle: `gp sweep -rln` previews a sweep of
+  both sides; `gp sweep -f -n` previews the force sweep.
 EOF
 }
 
@@ -115,7 +115,7 @@ want_remote=0    # -r seen
 raw_targets=()   # explicit branch name(s): sweep just these instead of the whole repo
 
 # Expand bundled value-less short flags (-rl, -fn, -rlf...) into separate
-# args before parsing, so `git sweep -rl` works the way anyone would expect
+# args before parsing, so `gp sweep -rl` works the way anyone would expect
 # it to. Only these five bundle: -b takes a value, and long options never
 # bundle. Anything containing another letter is left alone and falls through
 # to the unknown-option error below, rather than being silently half-read.
@@ -151,7 +151,7 @@ while [ $# -gt 0 ]; do
     -r|--remote) want_remote=1 ;;
     -b|--base) shift; base="${1:-}" ;;
     -h|--help) usage; exit 0 ;;
-    -*) echo "git sweep: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    -*) echo "gp sweep: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *) raw_targets+=("$1") ;;
   esac
   shift
@@ -165,7 +165,7 @@ else
   do_local="$want_local"; do_remote="$want_remote"
 fi
 
-require_git_repo "git sweep"
+require_git_repo "gp sweep"
 
 # Refresh remote-tracking refs first (best effort; ignore offline failures) so
 # "merged" is judged against origin's current tip. This is what lets sweep work
@@ -185,7 +185,7 @@ if git show-ref --verify --quiet "refs/remotes/origin/$base"; then
 elif git show-ref --verify --quiet "refs/heads/$base"; then
   mergeref="$base"
 else
-  echo "git sweep: base '$base' not found locally or on origin" >&2; exit 1
+  echo "gp sweep: base '$base' not found locally or on origin" >&2; exit 1
 fi
 
 current=$(git rev-parse --abbrev-ref HEAD)
@@ -217,10 +217,10 @@ if [ "${#raw_targets[@]}" -gt 0 ]; then
   targets=""
   for b in ${raw_targets[@]+"${raw_targets[@]}"}; do
     if [ "$b" = "$base" ]; then
-      echo "git sweep: refusing to delete the base branch '$b'" >&2; exit 2
+      echo "gp sweep: refusing to delete the base branch '$b'" >&2; exit 2
     fi
     if [ "$b" = "$current" ]; then
-      echo "git sweep: refusing to delete the current branch '$b' — switch away first" >&2; exit 2
+      echo "gp sweep: refusing to delete the current branch '$b' — switch away first" >&2; exit 2
     fi
     if [ "$do_local" = 1 ]; then
       if git show-ref --verify --quiet "refs/heads/$b"; then
@@ -240,7 +240,7 @@ if [ "${#raw_targets[@]}" -gt 0 ]; then
   targets=$(echo $targets); rtargets=$(echo $rtargets)  # trim whitespace
 
   if [ -z "$targets" ] && [ -z "$rtargets" ]; then
-    echo "git sweep: none of the given branches exist." >&2
+    echo "gp sweep: none of the given branches exist." >&2
     exit 1
   fi
 else
@@ -305,9 +305,9 @@ EOF
 
   if [ -z "$targets" ] && [ -z "$rtargets" ]; then
     if [ "$force" = 1 ]; then
-      echo "git sweep: no other branches to delete."
+      echo "gp sweep: no other branches to delete."
     else
-      echo "git sweep: nothing merged into '$mergeref' to delete."
+      echo "gp sweep: nothing merged into '$mergeref' to delete."
     fi
     exit 0
   fi
