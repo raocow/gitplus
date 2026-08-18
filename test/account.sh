@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end test for `git account`, run entirely inside a throwaway $HOME.
+# End-to-end test for `gp account`, run entirely inside a throwaway $HOME.
 #
 # This exists because the account commands write to ~/.ssh/config and
 # ~/.gitconfig — the two files where a bad edit hurts most. Everything is
@@ -7,7 +7,7 @@
 # real config. Run: test/account.sh
 set -uo pipefail
 
-ACCT="$(cd "$(dirname "$0")/.." && pwd)/bin/git-account"
+ACCT="$(cd "$(dirname "$0")/.." && pwd)/bin/gp-account"
 pass=0 fail=0
 
 ok()   { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
@@ -15,7 +15,7 @@ bad()  { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; }
 check(){ if [ "$2" = "$3" ]; then ok "$1"; else bad "$1 (want '$3', got '$2')"; fi; }
 has()  { if grep -qF "$2" "$3" 2>/dev/null; then ok "$1"; else bad "$1"; fi; }
 # Match captured output with a bash pattern instead of piping into `grep -q`:
-# grep exits on the first match, upstream git-account takes SIGPIPE, and `pipefail`
+# grep exits on the first match, upstream gp-account takes SIGPIPE, and `pipefail`
 # then reports the whole pipeline as failed even though nothing went wrong.
 saw()  { case "$2" in *"$3"*) ok "$1" ;; *) bad "$1" ;; esac; }
 
@@ -128,9 +128,9 @@ echo "== check: gh user verification =="
 FAKEBIN="$TMP/fakebin"; mkdir -p "$FAKEBIN"
 
 # No gh on PATH: check should say so, not blow up or silently pass. Use bare
-# system dirs (real core utils git-account itself needs — grep/sed/git — but gh is
+# system dirs (real core utils gp-account itself needs — grep/sed/git — but gh is
 # always Homebrew-installed, never bundled there) rather than an empty PATH,
-# which would also break git-account's own use of those utilities.
+# which would also break gp-account's own use of those utilities.
 out="$(PATH="/usr/bin:/bin" "$ACCT" check 2>&1)"
 saw "no gh installed is reported, not silent" "$out" "can't verify (gh CLI not installed)"
 
@@ -243,7 +243,7 @@ mkdir -p "$TMP/code/plaindir"
 out="$(PATH="$FAKEBIN:$PATH" "$ACCT" _access-for-dir "$TMP/code/plaindir" 2>&1)"
 check "not a git repo -> no match" "$out" ""
 
-# git account's own ssh alias form is still github.com and must be understood.
+# gp account's own ssh alias form is still github.com and must be understood.
 git init -q "$TMP/code/aliasremote"
 git -C "$TMP/code/aliasremote" remote add origin git@github.com-work:acme/widget.git
 mk_gh WRITE READ

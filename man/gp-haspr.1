@@ -1,11 +1,11 @@
-.TH GIT-HASPR 1 "2026-07-23" "gitplus" "gitplus Manual"
+.TH GP-HASPR 1 "2026-07-23" "gitplus" "gitplus Manual"
 .SH NAME
-git-haspr \- check whether a branch already has a pull request
+gp-haspr \- check whether a branch already has a pull request
 .SH SYNOPSIS
-.B git haspr
+.B gp haspr
 .RI [ BRANCH ]
 .br
-.B git haspr
+.B gp haspr
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 Check whether
@@ -17,7 +17,7 @@ landed or was closed, before you go create a duplicate.
 If any PR exists for the branch, its URL and state are printed and the exit
 status is 0. Otherwise a clear message is printed and the exit status is 1,
 so it is usable in scripts:
-.BR "if git haspr; then ...; fi" .
+.BR "if gp haspr; then ...; fi" .
 .SH OPTIONS
 .TP
 .BR \-h ", " \-\-help
@@ -29,14 +29,14 @@ authenticated for the repository
 .RB ( "gh auth login" ).
 .SH EXAMPLES
 .TP
-.B git haspr
+.B gp haspr
 Check the current branch.
 .TP
-.B git haspr task/foo
+.B gp haspr task/foo
 Check a specific branch.
 .TP
-.B git haspr || gh pr create
+.B gp haspr || gh pr create
 Open a PR only if this branch doesn't already have one.
 .SH SEE ALSO
-.BR git-pr (1),
+.BR gp-pr (1),
 .BR gh (1)

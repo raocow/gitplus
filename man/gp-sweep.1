@@ -1,8 +1,8 @@
-.TH GIT-SWEEP 1 "2026-07-07" "gitplus" "gitplus Manual"
+.TH GP-SWEEP 1 "2026-07-07" "gitplus" "gitplus Manual"
 .SH NAME
-git-sweep \- delete local branches already merged into the base branch
+gp-sweep \- delete local branches already merged into the base branch
 .SH SYNOPSIS
-.B git sweep
+.B gp sweep
 .RI [ BRANCH " ...]"
 [\fB\-r\fR|\fB\-\-remote\fR]
 [\fB\-l\fR|\fB\-\-local\fR]
@@ -98,14 +98,14 @@ List what would be deleted without changing anything.
 Show usage and exit.
 .SH EXAMPLES
 .TP
-.B git sweep
+.B gp sweep
 Delete local branches merged into the base (safe).
 .TP
-.B git sweep \-f \-n
+.B gp sweep \-f \-n
 Preview a force sweep of every local branch.
 .SH SEE ALSO
-.BR git-wsweep (1),
-.BR git-sync (1),
-.BR git-pr (1),
-.BR git-done (1),
+.BR gp-wsweep (1),
+.BR gp-sync (1),
+.BR gp-pr (1),
+.BR gp-done (1),
 .BR git-branch (1)

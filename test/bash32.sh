@@ -6,7 +6,7 @@
 # array as an unbound-variable error and dies; bash 4+ returns nothing and
 # carries on. So a script that works perfectly on a machine with Homebrew
 # bash first on PATH can abort instantly on a stock macOS one. That shipped:
-# `git pr merge -a` died with "line 800: exclude_ids[@]: unbound variable" on
+# `gp pr merge -a` died with "line 800: exclude_ids[@]: unbound variable" on
 # a second machine while being fine on the development machine, and stayed
 # invisible through several releases because every test run here used bash 5.
 #
@@ -74,7 +74,7 @@ git checkout -q -b work
 
 check() {  # check <command> [args...]
   local name="$*" out
-  out="$(PATH="$FB:$PATH" "$BASH32" "$BIN/git-$1" "${@:2}" 2>&1)"
+  out="$(PATH="$FB:$PATH" "$BASH32" "$BIN/gp-$1" "${@:2}" 2>&1)"
   case "$out" in
     *"unbound variable"*)
       fail=$((fail + 1))

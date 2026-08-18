@@ -1,6 +1,6 @@
 #autoload
 #
-# Completion for `git new` — the actual fix for chronically-verbose branch
+# Completion for `gp new` — the actual fix for chronically-verbose branch
 # names: Tab cycles through short words already used in this repo's existing
 # branch names (via _multi_parts, zsh's standard "compose from
 # hyphen-separated segments" completer), instead of typing a sentence.

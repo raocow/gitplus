@@ -1,8 +1,8 @@
-.TH GIT-ACCOUNT 1 "2026-08-13" "gitplus" "gitplus Manual"
+.TH GP-ACCOUNT 1 "2026-08-13" "gitplus" "gitplus Manual"
 .SH NAME
-git-account \- tie directories to different git/ssh/GitHub identities
+gp-account \- tie directories to different git/ssh/GitHub identities
 .SH SYNOPSIS
-.B git account add
+.B gp account add
 .I NAME
 .BI \-\-email " EMAIL"
 .RI [ \-\-name " GIT-NAME"]
@@ -10,21 +10,21 @@ git-account \- tie directories to different git/ssh/GitHub identities
 .RI [ \-\-dir " PATH"]
 .RI [ \-\-gh\-user " USER"]
 .br
-.B git account bind
+.B gp account bind
 .I NAME DIR
 .br
-.B git account list
+.B gp account list
 .br
-.B git account key
+.B gp account key
 .I NAME
 .br
-.B git account check
+.B gp account check
 .SH DESCRIPTION
 Work split across more than one GitHub account \(em a personal one and an
 employer's \(em normally means remembering to set
 .I user.email
 per clone and juggling ssh keys by hand.
-.B git account
+.B gp account
 sets an account up once, and every repository under a bound directory then
 commits as it, reaches the host with its key, and (with
 .BR \-\-gh\-user )
@@ -69,7 +69,7 @@ The git host. Defaults to
 Bind the account to
 .I PATH
 in the same step, equivalent to a following
-.BR "git account bind" .
+.BR "gp account bind" .
 .TP
 .BI \-\-gh\-user " USER"
 Pair the account with a
@@ -149,12 +149,12 @@ file permissions only.
 .PP
 .nf
 .RS
-git account add work --email me@work.com --dir ~/code/work --gh-user work-gh
+gp account add work --email me@work.com --dir ~/code/work --gh-user work-gh
 # paste the printed key into that host account, then:
 git clone git@github.com-work:acme/api.git ~/code/work/api
-git account check
+gp account check
 .RE
 .fi
 .SH SEE ALSO
-.BR git-pr (1),
+.BR gp-pr (1),
 .BR gh (1)

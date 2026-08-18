@@ -1,4 +1,4 @@
-# gitplus-common.sh — shared helpers for the git-* commands.
+# gitplus-common.sh — shared helpers for the gp-* commands.
 #
 # Sourced, not executed — each script resolves its own real location
 # (following symlinks, since these are installed as symlinks) and sources
@@ -7,7 +7,7 @@
 # this costs nothing measurable while removing real duplication (and, for
 # resolve_base, a real inconsistency — see below).
 
-# Colorized step output on a terminal (respects NO_COLOR). Every git-* tool
+# Colorized step output on a terminal (respects NO_COLOR). Every gp-* tool
 # narrates its actions in this one consistent format: green ✓ for a
 # completed step, yellow ! for a warning, dim for secondary detail, cyan for
 # a branch name called out within a line (matches the cyan already used for
@@ -94,7 +94,7 @@ require_gh() {
 # (a script, a cron job, an agent's tool call) never sources ~/.zshrc and so
 # silently falls back to whatever the global account happens to be. That is
 # the failure this closes: these commands resolve the account themselves, so
-# `git pr` in a repo bound to one identity uses that identity no matter what
+# `gp pr` in a repo bound to one identity uses that identity no matter what
 # started it.
 #
 # Soft dependency: without devrig, or outside a bound directory, this is a
@@ -104,9 +104,9 @@ require_gh() {
 gh_scope_to_repo() {
   [ -n "${GH_TOKEN:-}" ] && return 0
   command -v gh >/dev/null 2>&1 || return 0
-  command -v git-account >/dev/null 2>&1 || return 0
+  command -v gp-account >/dev/null 2>&1 || return 0
   local acct tok
-  acct="$(git-account _gh-for-dir "$PWD" 2>/dev/null)" || return 0
+  acct="$(gp-account _gh-for-dir "$PWD" 2>/dev/null)" || return 0
   [ -n "$acct" ] || return 0
   tok="$(gh auth token --user "$acct" 2>/dev/null)" || return 0
   [ -n "$tok" ] && export GH_TOKEN="$tok"
@@ -142,7 +142,7 @@ pr_merged_into() {
 
 # merged_pr_heads_into <base> — the head branch name of every merged PR into
 # <base>, one per line. The batch form of pr_merged_into, for callers that
-# have to judge many branches at once (git sweep): one API call regardless of
+# have to judge many branches at once (gp sweep): one API call regardless of
 # branch count, instead of one per branch, which in a squash-merging repo
 # would mean a network round trip for every branch in the repo. Prints
 # nothing if gh is unavailable, so callers degrade to the ancestor test.

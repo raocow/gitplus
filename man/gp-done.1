@@ -1,17 +1,17 @@
-.TH GIT-DONE 1 "2026-07-07" "gitplus" "gitplus Manual"
+.TH GP-DONE 1 "2026-07-07" "gitplus" "gitplus Manual"
 .SH NAME
-git-done \- switch back to the base branch and delete the branch you left
+gp-done \- switch back to the base branch and delete the branch you left
 .SH SYNOPSIS
-.B git done
+.B gp done
 [\fB\-f\fR|\fB\-\-force\fR]
 [\fB\-b\fR|\fB\-\-base\fR \fINAME\fR]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 The bookend to
-.BR git-pr (1).
+.BR gp-pr (1).
 After you have checked out a pull request's branch and finished reviewing it,
-.B git done
+.B gp done
 returns you to the base branch (origin's default, usually
 .IR main ),
 fast-forwards it to the latest on
@@ -58,12 +58,12 @@ offline it falls back to refusing, which is the safe direction.
 still deletes regardless.
 .PP
 On a detached HEAD there is no branch to delete, so
-.B git done
+.B gp done
 just switches back to the base (and fast-forwards it), then reports that there
 was nothing to delete.
 .PP
 If you are already on the base branch, there is likewise nothing to delete, so
-.B git done
+.B gp done
 simply pulls it \(em fetches and fast-forwards the base to
 .IR origin .
 .SH OPTIONS
@@ -89,20 +89,20 @@ changing anything.
 Show usage and exit.
 .SH EXAMPLES
 .TP
-.B git pr 923 && git done
+.B gp pr 923 && gp done
 Check out PR #923, review it, then return to main and delete its branch.
 .TP
-.B git done \-f
+.B gp done \-f
 Force-delete the current branch (e.g. after it was squash-merged).
 .TP
-.B git done \-n
+.B gp done \-n
 Preview the actions without running them.
 .SH EXIT STATUS
 Exits nonzero if not in a git repository, the base is not found, or the branch
 is refused by a safe delete.
 .SH SEE ALSO
-.BR git-pr (1),
-.BR git-sync (1),
-.BR git-sweep (1),
+.BR gp-pr (1),
+.BR gp-sync (1),
+.BR gp-sweep (1),
 .BR git-branch (1),
 .BR git-switch (1)

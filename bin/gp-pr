@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
 #
-# git-pr — list your open PRs, check one out, or merge one or more.
+# gp-pr — list your open PRs, check one out, or merge one or more.
 #
-#   git pr                list your open PRs in this repo, as "<url> -- <title>"
-#   git pr --no-title     just the URLs, one per line (easy to pipe)   [-nt]
-#   git pr --copy         also copy the listing to the clipboard         [-c]
-#   git pr --global       every open PR under every authed gh account,
+#   gp pr                list your open PRs in this repo, as "<url> -- <title>"
+#   gp pr --no-title     just the URLs, one per line (easy to pipe)   [-nt]
+#   gp pr --copy         also copy the listing to the clipboard         [-c]
+#   gp pr --global       every open PR under every authed gh account,
 #                         across all repos — works outside a repo too   [-g]
-#   git pr <n|branch>     check out that PR's branch, updated to the PR's latest
-#   git pr list <ids...>  show title/link for specific PR(s) instead of
+#   gp pr <n|branch>     check out that PR's branch, updated to the PR's latest
+#   gp pr list <ids...>  show title/link for specific PR(s) instead of
 #                         checking out — any count, any author, any state
-#   git pr merge <ids...> merge specific PR(s) (number, branch, URL, or a
+#   gp pr merge <ids...> merge specific PR(s) (number, branch, URL, or a
 #                         "NNN-MMM" range — all mixable)
-#   git pr merge --all    merge every mergeable PR you authored   [-a]
-#   git pr close <ids...> close specific PR(s) without merging — same id
+#   gp pr merge --all    merge every mergeable PR you authored   [-a]
+#   gp pr close <ids...> close specific PR(s) without merging — same id
 #                         grammar as merge; --all closes all of yours   [-a]
-#   git pr unmerge <ids...>  revert already-merged PR(s) by opening a revert
+#   gp pr unmerge <ids...>  revert already-merged PR(s) by opening a revert
 #                         PR for each (via gh pr revert)
-#   git pr ... -x <ids...>   exclude PR(s) from any of the above   [--exclude]
+#   gp pr ... -x <ids...>   exclude PR(s) from any of the above   [--exclude]
 #
 # The checkout/list argument (and each merge argument) can be a PR number, a
 # head branch name, or a PR URL — whatever `gh` can resolve to a pull request.
 # It can also be "." or "@", meaning the branch you're currently on (the PR
 # for the current branch — same idea as `gh pr view` with no argument); this
-# works anywhere an id is accepted, so `git pr list .` shows the current
-# branch's PR, `git pr .` checks it out, `git pr merge .` merges it. Bare
-# `git pr` / `git pr list` with no token still lists all your open PRs.
+# works anywhere an id is accepted, so `gp pr list .` shows the current
+# branch's PR, `gp pr .` checks it out, `gp pr merge .` merges it. Bare
+# `gp pr` / `gp pr list` with no token still lists all your open PRs.
 # Checkout uses `gh pr checkout`, which creates the branch or fast-forwards an
 # existing one to the PR's latest — so you're never on a stale copy. For a
 # merged/closed PR whose head branch was deleted from origin, it falls back to
@@ -33,24 +33,24 @@
 # branch (the stamped one for a number, or the named branch itself), switched
 # to as-is (not updated).
 #
-# `git pr <id>` (no subcommand, exactly one plain id, no -x) checks that PR
+# `gp pr <id>` (no subcommand, exactly one plain id, no -x) checks that PR
 # out — you can't check out more than one at once. To just see a single PR's
 # title/link without touching your working tree, say so explicitly with
-# `git pr list <id>`. Naming PRs explicitly via `list` isn't scoped to you —
-# same principle as `git pr merge <ids>` — and shows every state (open,
+# `gp pr list <id>`. Naming PRs explicitly via `list` isn't scoped to you —
+# same principle as `gp pr merge <ids>` — and shows every state (open,
 # closed, merged), not just open. Ids that can't be a checkout (2+ of them, a
 # range, or -x) are an ERROR rather than an implicit list: one of those forms
 # changes your working tree and the other doesn't, which is too sharp a
 # difference to hinge on how many arguments you happened to type.
 #
-# `git pr merge` touches shared remote state (it merges PRs on GitHub), but it
+# `gp pr merge` touches shared remote state (it merges PRs on GitHub), but it
 # acts by default — pass -n/--dry-run to preview first. There is no --force;
 # anything blocked by branch protection (required reviews/checks) is always
 # left alone, never bypassed.
 #
-# `git pr merge <ids...>` merges exactly the PRs you named, whoever authored
+# `gp pr merge <ids...>` merges exactly the PRs you named, whoever authored
 # them (same as naming a PR to `gh pr merge` — you're being explicit, so it's
-# not scoped to your own). `git pr merge --all` has no ids and is a broad
+# not scoped to your own). `gp pr merge --all` has no ids and is a broad
 # sweep, so THAT form only ever considers PRs YOU authored — merging someone
 # else's PR isn't a sweep's call to make.
 #
@@ -97,39 +97,39 @@
 # A method flag applies BACKWARD, to every id to its left that no other method
 # flag has already claimed. Equivalently: each id takes the method of the
 # nearest method flag to its RIGHT, and an id with none uses the default. So
-#     git pr merge 12-31 --merge 42 43-51 -s
+#     gp pr merge 12-31 --merge 42 43-51 -s
 # merges 12-31 with a merge commit and squashes 42 and 43-51: -s claims 42 and
 # 43-51, and can't reach past the --merge that already claimed 12-31. Ids after
 # the last method flag have nothing to their right and take the default.
 # -x/--exclude composes with this: a method flag ends an -x run like any other
 # flag, and it only ever claims targets, never excludes.
 #
-# Branches are never auto-deleted after merge — run `git sweep` afterward.
+# Branches are never auto-deleted after merge — run `gp sweep` afterward.
 #
-# (Named `git pr`, not `git switch`: git always prefers its built-in `switch`
+# (Named `gp pr`, not `git switch`: git always prefers its built-in `switch`
 # over a script, so a custom `git-switch` could never run. A branch literally
-# named "merge" can't be checked out with `git pr merge` for the same reason
-# `merge` is claimed as a subcommand — use `git pr merge merge` if you must.
+# named "merge" can't be checked out with `gp pr merge` for the same reason
+# `merge` is claimed as a subcommand — use `gp pr merge merge` if you must.
 # Same goes for "list", "close" and "unmerge".)
 #
 # Usage:
-#   git pr                          list open PRs you authored ("<url> -- <title>")
-#   git pr -nt                      list them as bare URLs (--no-title)
-#   git pr -g                       every open PR under EVERY authed gh account,
+#   gp pr                          list open PRs you authored ("<url> -- <title>")
+#   gp pr -nt                      list them as bare URLs (--no-title)
+#   gp pr -g                       every open PR under EVERY authed gh account,
 #                                   across all repos (--global; works anywhere)
-#   git pr <n|branch>                check out a PR by number, branch name, or URL
-#   git pr list <ids...>            list exactly those PRs — any author, any state
-#   git pr merge <n|branch|range>... merge the given PR(s); "824-830" is a range
-#   git pr merge --all              merge every mergeable PR you authored (-a)
-#   git pr close <ids...>           close the given PR(s) without merging;
+#   gp pr <n|branch>                check out a PR by number, branch name, or URL
+#   gp pr list <ids...>            list exactly those PRs — any author, any state
+#   gp pr merge <n|branch|range>... merge the given PR(s); "824-830" is a range
+#   gp pr merge --all              merge every mergeable PR you authored (-a)
+#   gp pr close <ids...>           close the given PR(s) without merging;
 #                                   --all closes every open PR you authored
-#   git pr unmerge <ids...>         revert merged PR(s) — opens a revert PR
-#   git pr ... -x <ids...>          exclude PR(s) (--exclude; also takes ranges)
-#   git pr merge|close|unmerge ... -n   preview instead (--dry-run)
-#   git pr merge ... --method squash|merge|rebase   default method for the run
-#   git pr merge <ids> -s|-m|-r     method for just those ids (--squash/--merge/
+#   gp pr unmerge <ids...>         revert merged PR(s) — opens a revert PR
+#   gp pr ... -x <ids...>          exclude PR(s) (--exclude; also takes ranges)
+#   gp pr merge|close|unmerge ... -n   preview instead (--dry-run)
+#   gp pr merge ... --method squash|merge|rebase   default method for the run
+#   gp pr merge <ids> -s|-m|-r     method for just those ids (--squash/--merge/
 #                                   --rebase; claims the ids to its left)
-#   git pr -h                       show this help
+#   gp pr -h                       show this help
 #
 set -euo pipefail
 
@@ -146,51 +146,51 @@ source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
 
 usage() {
   cat <<'EOF'
-git pr — list your open PRs, check one out, or merge one or more.
+gp pr — list your open PRs, check one out, or merge one or more.
 
-  git pr                      list your open PRs in this repo, as "<url> -- <title>"
-  git pr -nt                  list them as bare URLs (--no-title)
-  git pr -c                   also copy the listing to the clipboard (--copy;
+  gp pr                      list your open PRs in this repo, as "<url> -- <title>"
+  gp pr -nt                  list them as bare URLs (--no-title)
+  gp pr -c                   also copy the listing to the clipboard (--copy;
                               works with any listing form, not merge)
-  git pr -g                   every open PR under EVERY gh account you're
+  gp pr -g                   every open PR under EVERY gh account you're
                               logged into, across all repos (--global).
                               Works outside a repo. Listing only — no ids,
                               no -x, not with merge.
-  git pr <n|branch>           check out that PR (by number, branch name, or
+  gp pr <n|branch>           check out that PR (by number, branch name, or
                               URL), updated to the PR's latest
-  git pr list <ids...>        show title/link for specific PR(s) instead of
+  gp pr list <ids...>        show title/link for specific PR(s) instead of
                               checking out — any count, any author, any state
-  git pr list .               show the PR for the CURRENT branch ('.' or '@'
+  gp pr list .               show the PR for the CURRENT branch ('.' or '@'
                               means the branch you're on — works anywhere an
                               id is accepted: list, checkout, merge, -x)
-  git pr merge <ids...>       merge the given PR(s) (number, branch, URL, or a
+  gp pr merge <ids...>       merge the given PR(s) (number, branch, URL, or a
                               "824-830" range — all mixable), rebasing what
                               needs it, skipping what needs a human
-  git pr merge --all          merge every mergeable PR YOU authored (-a)
-  git pr close <ids...>       close the given PR(s) without merging — same id
+  gp pr merge --all          merge every mergeable PR YOU authored (-a)
+  gp pr close <ids...>       close the given PR(s) without merging — same id
                               grammar as merge (numbers, branches, URLs,
                               ranges, ./@)
-  git pr close --all          close every open PR YOU authored (-a)
-  git pr unmerge <ids...>     revert already-merged PR(s): opens a revert PR
+  gp pr close --all          close every open PR YOU authored (-a)
+  gp pr unmerge <ids...>     revert already-merged PR(s): opens a revert PR
                               for each, which you then merge to undo it
-  git pr ... -x <ids>         exclude PR(s) from any of the above (--exclude;
+  gp pr ... -x <ids>         exclude PR(s) from any of the above (--exclude;
                               also takes ranges — everything after -x is
                               excluded until the next flag)
-  git pr merge|close|unmerge ... -n
+  gp pr merge|close|unmerge ... -n
                               preview instead: show the plan, change nothing
-  git pr -h                   show this help
+  gp pr -h                   show this help
 
 Uses the GitHub CLI (gh). Checkout falls back to refs/pull/<n>/head for deleted
 branches, or (offline) to the local branch.
 
-`git pr <id>` (no subcommand, exactly one plain id, no -x) checks it out — you
+`gp pr <id>` (no subcommand, exactly one plain id, no -x) checks it out — you
 can't check out more than one PR at once. To see a single PR's title/link
-without touching your working tree, say so explicitly with `git pr list <id>`.
+without touching your working tree, say so explicitly with `gp pr list <id>`.
 Naming PRs explicitly (via `list`, or bare multi/range/-x — kept for old
 muscle memory) isn't scoped to you.
 
-`git pr merge <ids>` merges exactly the PRs you named, whoever authored them.
-`git pr merge --all` (no ids) is a broad sweep, so it only ever considers PRs
+`gp pr merge <ids>` merges exactly the PRs you named, whoever authored them.
+`gp pr merge --all` (no ids) is a broad sweep, so it only ever considers PRs
 YOU authored — merging someone else's PR isn't a sweep's call to make. Branch
 protection (required reviews/checks) is never bypassed either way. PRs are
 merged in an order chosen to minimize conflicts — the least-entangled ones
@@ -198,7 +198,7 @@ merged in an order chosen to minimize conflicts — the least-entangled ones
 one, in a scratch worktree that never touches your current branch; if the
 rebase itself conflicts, that PR is skipped for you to resolve by hand.
 
-  git pr merge 824-830 -x 825 827   merge #824-830 except #825 and #827
+  gp pr merge 824-830 -x 825 827   merge #824-830 except #825 and #827
 
 Merge method: --method squash|merge|rebase sets it for the whole run (default:
 the repo's own). Individual PRs override it with -s/--squash, -m/--merge,
@@ -208,9 +208,9 @@ each id takes the nearest method flag to its RIGHT, and ids with none take the
 default. -x composes: a method flag ends an -x run, and only ever claims
 targets, never excludes.
 
-  git pr merge 12-31 --merge 42 43-51 -s
+  gp pr merge 12-31 --merge 42 43-51 -s
                                 #12-31 by merge commit; #42 and #43-51 squashed
-  git pr merge 1 2 -s 3         #1 and #2 squashed; #3 takes the default
+  gp pr merge 1 2 -s 3         #1 and #2 squashed; #3 takes the default
 EOF
 }
 
@@ -231,7 +231,7 @@ method_flagged=0 # whether any per-id method flag (-s/-m/-r) was given
 # A method flag applies BACKWARD, to every id to its left that doesn't already
 # have one — i.e. each id takes the method of the nearest method flag to its
 # RIGHT, and ids with none fall back to the default. That's what makes
-#   git pr merge 12-31 --merge 42 43-51 -s
+#   gp pr merge 12-31 --merge 42 43-51 -s
 # mean "12-31 by merge commit, 42 and 43-51 squashed": -s claims 42 and 43-51,
 # and --merge already claimed 12-31, so -s can't reach past it. Ids after the
 # last method flag have no flag to their right and use the default.
@@ -244,8 +244,8 @@ _claim_pending() {  # _claim_pending <method>
   method_flagged=1
 }
 
-# `merge`/`list`/`close` are subcommands, not flags: `git pr merge <ids...>` /
-# `--all`, `git pr list <ids...>`, `git pr close <ids...>`.
+# `merge`/`list`/`close` are subcommands, not flags: `gp pr merge <ids...>` /
+# `--all`, `gp pr list <ids...>`, `gp pr close <ids...>`.
 if [ "${1:-}" = "merge" ]; then subcmd="merge"; shift;
 elif [ "${1:-}" = "list" ]; then subcmd="list"; shift;
 elif [ "${1:-}" = "close" ]; then subcmd="close"; shift;
@@ -265,7 +265,7 @@ while [ $# -gt 0 ]; do
     -m|--merge)  _claim_pending merge;  in_exclude=0 ;;
     -r|--rebase) _claim_pending rebase; in_exclude=0 ;;
     --method) shift; method="${1:-}"; in_exclude=0 ;;
-    -*) echo "git pr: unknown option '$1' (try -h)" >&2; exit 2 ;;
+    -*) echo "gp pr: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *)
       if [ "$in_exclude" = 1 ]; then
         raw_excludes+=("$1")
@@ -279,52 +279,52 @@ done
 
 if [ "$global" = 1 ]; then
   if [ "$subcmd" = "merge" ]; then
-    echo "git pr: -g/--global is for listing, not merging — merging across every repo you have access to isn't something a single flag should do" >&2; exit 2
+    echo "gp pr: -g/--global is for listing, not merging — merging across every repo you have access to isn't something a single flag should do" >&2; exit 2
   fi
   if [ "${#raw_targets[@]}" -gt 0 ] || [ "${#raw_excludes[@]}" -gt 0 ]; then
-    echo "git pr: -g/--global lists everything and takes no ids (or -x)" >&2; exit 2
+    echo "gp pr: -g/--global lists everything and takes no ids (or -x)" >&2; exit 2
   fi
 fi
 
 if [ "$subcmd" = "merge" ]; then
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
-    echo "git pr merge: can't combine --all with specific PRs" >&2; exit 2
+    echo "gp pr merge: can't combine --all with specific PRs" >&2; exit 2
   fi
   if [ "$all" = 0 ] && [ "${#raw_targets[@]}" -eq 0 ]; then
-    echo "git pr merge: specify PR(s) to merge (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
+    echo "gp pr merge: specify PR(s) to merge (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
   fi
 elif [ "$subcmd" = "close" ]; then
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
-    echo "git pr close: can't combine --all with specific PRs" >&2; exit 2
+    echo "gp pr close: can't combine --all with specific PRs" >&2; exit 2
   fi
   if [ "$all" = 0 ] && [ "${#raw_targets[@]}" -eq 0 ]; then
-    echo "git pr close: specify PR(s) to close (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
+    echo "gp pr close: specify PR(s) to close (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
   fi
   if [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
-    echo "git pr close: merge-method flags only apply to 'git pr merge'" >&2; exit 2
+    echo "gp pr close: merge-method flags only apply to 'gp pr merge'" >&2; exit 2
   fi
 elif [ "$subcmd" = "unmerge" ]; then
   # No --all here on purpose. "Revert every PR I ever merged" has no sane
   # reading, and unlike close (reopenable) this puts new commits on the base
   # branch — naming what you want reverted should be deliberate.
   if [ "$all" = 1 ]; then
-    echo "git pr unmerge: no --all — name the PR(s) to revert explicitly" >&2; exit 2
+    echo "gp pr unmerge: no --all — name the PR(s) to revert explicitly" >&2; exit 2
   fi
   if [ "${#raw_targets[@]}" -eq 0 ]; then
-    echo "git pr unmerge: specify the merged PR(s) to revert (number, branch, or URL — 'NNN-MMM' for a range)" >&2; exit 2
+    echo "gp pr unmerge: specify the merged PR(s) to revert (number, branch, or URL — 'NNN-MMM' for a range)" >&2; exit 2
   fi
   if [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
-    echo "git pr unmerge: merge-method flags only apply to 'git pr merge'" >&2; exit 2
+    echo "gp pr unmerge: merge-method flags only apply to 'gp pr merge'" >&2; exit 2
   fi
 else
   # --all is also valid here (explicitly "all my open PRs", same meaning as
   # the implicit default when no targets are given) so its grammar mirrors
-  # `git pr merge --all`; -n/--method/-s/-m/-r genuinely don't apply to listing.
+  # `gp pr merge --all`; -n/--method/-s/-m/-r genuinely don't apply to listing.
   if [ "$dry" = 1 ] || [ -n "$method" ] || [ "$method_flagged" = 1 ]; then
-    echo "git pr: --dry-run and the merge-method flags only apply to 'git pr merge' and 'git pr close'" >&2; exit 2
+    echo "gp pr: --dry-run and the merge-method flags only apply to 'gp pr merge' and 'gp pr close'" >&2; exit 2
   fi
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
-    echo "git pr: can't combine --all with specific PRs" >&2; exit 2
+    echo "gp pr: can't combine --all with specific PRs" >&2; exit 2
   fi
 fi
 
@@ -335,7 +335,7 @@ fi
 # Deliberately before require_git_repo: this is the one form that isn't about
 # the repo you're standing in, so it has to work from anywhere. It's also the
 # answer to a real confusion — with per-directory identities, a plain
-# `git pr` showing nothing only means the ACTIVE account has nothing here,
+# `gp pr` showing nothing only means the ACTIVE account has nothing here,
 # which looks identical to "I have no work in flight".
 #
 # Each account is queried with its own token via GH_TOKEN for that one call,
@@ -344,7 +344,7 @@ fi
 # the box.
 # ══════════════════════════════════════════════════════════════════════════
 if [ "$global" = 1 ]; then
-  require_gh "git pr"
+  require_gh "gp pr"
   # Deliberately NOT gh_scope_to_repo here: -g is the one form that isn't
   # about the current repo. With GH_TOKEN set, `gh auth status` lists the
   # env-token identity IN ADDITION to the keyring accounts (verified: the
@@ -352,7 +352,7 @@ if [ "$global" = 1 ]; then
   # print each of its PRs twice.
   accounts="$(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p')"
   if [ -z "$accounts" ]; then
-    echo "git pr: no accounts logged in to gh (try: gh auth login)" >&2; exit 1
+    echo "gp pr: no accounts logged in to gh (try: gh auth login)" >&2; exit 1
   fi
   rows=""
   for acct in $accounts; do
@@ -394,13 +394,13 @@ EOF
   exit 0
 fi
 
-require_git_repo "git pr"
+require_git_repo "gp pr"
 
 # A target or exclude of '.' or '@' means the current branch — the PR for the
 # branch you're on (same idea as `gh pr view` with no argument). Resolve it to
 # the real branch name up front so every downstream path (checkout, list,
 # exclude) treats it like any other branch name. This is an explicit extra
-# token, not a change to the default: bare `git pr` / `git pr list` still
+# token, not a change to the default: bare `gp pr` / `gp pr list` still
 # lists all your open PRs. ('.'/'@' can't be a real PR number or branch name,
 # so claiming them collides with nothing.)
 _here=0
@@ -413,7 +413,7 @@ fi
 if [ "$_here" = 1 ]; then
   here_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   if [ -z "$here_branch" ] || [ "$here_branch" = HEAD ]; then
-    echo "git pr: '.'/'@' means the current branch, but you're on a detached HEAD" >&2; exit 1
+    echo "gp pr: '.'/'@' means the current branch, but you're on a detached HEAD" >&2; exit 1
   fi
   i=0; while [ "$i" -lt "${#raw_targets[@]}" ]; do
     case "${raw_targets[$i]}" in .|@) raw_targets[$i]="$here_branch" ;; esac; i=$((i + 1))
@@ -435,7 +435,7 @@ merge_methods=()
 _ti=0
 while [ "$_ti" -lt "${#raw_targets[@]}" ]; do
   _one=()
-  expand_ranges "git pr" _one "${raw_targets[$_ti]}"
+  expand_ranges "gp pr" _one "${raw_targets[$_ti]}"
   for _e in ${_one[@]+"${_one[@]}"}; do
     merge_ids+=("$_e")
     merge_methods+=("${raw_methods[$_ti]:-}")
@@ -443,17 +443,17 @@ while [ "$_ti" -lt "${#raw_targets[@]}" ]; do
   _ti=$((_ti + 1))
 done
 exclude_ids=()
-[ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges "git pr" exclude_ids ${raw_excludes[@]+"${raw_excludes[@]}"}
+[ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges "gp pr" exclude_ids ${raw_excludes[@]+"${raw_excludes[@]}"}
 
-# No-subcommand dispatch: with ids, bare `git pr` means exactly one thing —
+# No-subcommand dispatch: with ids, bare `gp pr` means exactly one thing —
 # check that PR out. It used to ALSO mean "list these" whenever the ids
 # couldn't be a checkout (2+ of them, a range, or -x), which made the same
 # command shape do two unrelated things a character apart:
-#     git pr 422        → checks out #422's branch
-#     git pr 422-423    → printed a list, touched nothing
+#     gp pr 422        → checks out #422's branch
+#     gp pr 422-423    → printed a list, touched nothing
 # One of those changes your working tree and one doesn't, so guessing wrong
-# is not a small mistake. That form is now an error pointing at `git pr
-# list`, which has always been the explicit spelling. Bare `git pr` with no
+# is not a small mistake. That form is now an error pointing at `gp pr
+# list`, which has always been the explicit spelling. Bare `gp pr` with no
 # ids still lists your open PRs — nothing ambiguous about that one.
 if [ "$subcmd" = "" ] && { [ "${#raw_targets[@]}" -gt 0 ] || [ "${#raw_excludes[@]}" -gt 0 ]; }; then
   if [ "${#raw_targets[@]}" -eq 1 ] && [ "${#raw_excludes[@]}" -eq 0 ] \
@@ -462,24 +462,24 @@ if [ "$subcmd" = "" ] && { [ "${#raw_targets[@]}" -gt 0 ] || [ "${#raw_excludes[
   else
     _args="${raw_targets[*]}"
     [ "${#raw_excludes[@]}" -gt 0 ] && _args="$_args -x ${raw_excludes[*]}"
-    echo "git pr: '$_args' can't be a checkout — you can only check out one PR at a time." >&2
-    echo "  to list those PRs:      git pr list $_args" >&2
-    echo "  to check just one out:  git pr <id>" >&2
+    echo "gp pr: '$_args' can't be a checkout — you can only check out one PR at a time." >&2
+    echo "  to list those PRs:      gp pr list $_args" >&2
+    echo "  to check just one out:  gp pr <id>" >&2
     exit 2
   fi
 fi
 
-require_gh "git pr"
+require_gh "gp pr"
 gh_scope_to_repo
 
 # ══════════════════════════════════════════════════════════════════════════
-# git pr merge: merge specific PR(s), or --all mergeable PRs you authored.
+# gp pr merge: merge specific PR(s), or --all mergeable PRs you authored.
 # ══════════════════════════════════════════════════════════════════════════
 if [ "$subcmd" = "merge" ]; then
   [ -n "$method" ] && method="$(printf '%s' "$method" | tr '[:upper:]' '[:lower:]')"
   case "$method" in
     ""|merge|squash|rebase) ;;
-    *) echo "git pr merge: --method must be merge, squash, or rebase" >&2; exit 2 ;;
+    *) echo "gp pr merge: --method must be merge, squash, or rebase" >&2; exit 2 ;;
   esac
 
   tmp="$(mktemp -d)"
@@ -529,7 +529,7 @@ if [ "$subcmd" = "merge" ]; then
       nums="$nums $n"
     done
     if [ -z "$nums" ]; then
-      echo "git pr merge: no open PRs authored by you in this repo (after --exclude)."
+      echo "gp pr merge: no open PRs authored by you in this repo (after --exclude)."
       exit 0
     fi
   else
@@ -552,7 +552,7 @@ if [ "$subcmd" = "merge" ]; then
       [ -n "$mid_method" ] && method_map="$method_map $n:$mid_method"
     done
     if [ -z "$nums" ]; then
-      echo "git pr merge: none of the given PR(s) could be resolved (or all were excluded)."
+      echo "gp pr merge: none of the given PR(s) could be resolved (or all were excluded)."
       if [ "${#skipped[@]}" -gt 0 ]; then
         echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
       fi
@@ -581,7 +581,7 @@ if [ "$subcmd" = "merge" ]; then
   done
 
   if [ "${#cand[@]}" -eq 0 ]; then
-    echo "git pr merge: nothing to merge (all given PRs are drafts or unreadable)."
+    echo "gp pr merge: nothing to merge (all given PRs are drafts or unreadable)."
     if [ "${#skipped[@]}" -gt 0 ]; then
       echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
     fi
@@ -731,7 +731,7 @@ if [ "$subcmd" = "merge" ]; then
           # from errexit, and `rc=$?` on the right still captures its real
           # exit code. Without this, ANY non-zero return from rebase_and_push
           # (conflict, branch checked out elsewhere, fetch/push failure) would
-          # silently kill the entire `git pr merge` run with no message at
+          # silently kill the entire `gp pr merge` run with no message at
           # all, instead of warning and skipping just this one PR.
           rc=0; rebase_and_push "$head" "$base" || rc=$?
           case "$rc" in
@@ -740,7 +740,7 @@ if [ "$subcmd" = "merge" ]; then
                 step "rebased + merged #$num ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
                 merged+=("#$num $title")
               else
-                warn "rebased #$num but merge still hasn't gone through — rerun 'git pr merge $num' to retry"
+                warn "rebased #$num but merge still hasn't gone through — rerun 'gp pr merge $num' to retry"
                 skipped+=("#$num $title -- rebased and pushed; merge pending (rerun to retry)")
               fi
               ;;
@@ -800,7 +800,7 @@ if [ "$subcmd" = "merge" ]; then
 fi
 
 # ══════════════════════════════════════════════════════════════════════════
-# git pr close: close specific PR(s), or --all of your open ones.
+# gp pr close: close specific PR(s), or --all of your open ones.
 #
 # Same id grammar as merge (number, branch, URL, "." / "@", NNN-MMM ranges,
 # -x to exclude) so the two read alike. Much simpler than merge, though:
@@ -825,7 +825,7 @@ if [ "$subcmd" = "close" ]; then
       case " $exclude_nums " in *" $n "*) continue ;; esac
       nums="$nums $n"
     done
-    [ -n "$nums" ] || { echo "git pr close: no open PRs authored by you in this repo (after --exclude)."; exit 0; }
+    [ -n "$nums" ] || { echo "gp pr close: no open PRs authored by you in this repo (after --exclude)."; exit 0; }
   else
     for cid in ${merge_ids[@]+"${merge_ids[@]}"}; do
       n="$(gh pr view "$cid" --json number,state --jq 'select(.state == "OPEN") | .number' 2>/dev/null || true)"
@@ -836,7 +836,7 @@ if [ "$subcmd" = "close" ]; then
       nums="$nums $n"
     done
     if [ -z "$nums" ]; then
-      echo "git pr close: none of the given PR(s) could be resolved (or all were excluded)."
+      echo "gp pr close: none of the given PR(s) could be resolved (or all were excluded)."
       if [ "${#skipped[@]}" -gt 0 ]; then
         echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
       fi
@@ -882,7 +882,7 @@ if [ "$subcmd" = "close" ]; then
 fi
 
 # ══════════════════════════════════════════════════════════════════════════
-# git pr unmerge: revert already-merged PR(s), by opening a revert PR each.
+# gp pr unmerge: revert already-merged PR(s), by opening a revert PR each.
 #
 # Delegates to `gh pr revert`, which is the right call rather than doing the
 # revert locally: GitHub knows how each PR was actually merged, and the three
@@ -922,7 +922,7 @@ if [ "$subcmd" = "unmerge" ]; then
   done
 
   if [ -z "$nums" ]; then
-    echo "git pr unmerge: none of the given PR(s) are merged (or all were excluded)."
+    echo "gp pr unmerge: none of the given PR(s) are merged (or all were excluded)."
     if [ "${#skipped[@]}" -gt 0 ]; then
       echo "Skipped:"; for s in ${skipped[@]+"${skipped[@]}"}; do echo "  $s"; done
     fi
@@ -968,11 +968,11 @@ fi
 
 # ══════════════════════════════════════════════════════════════════════════
 # No single checkout target: list PRs (titles by default) instead. Reached
-# via explicit `git pr list ...` (any target count, including one) or the
+# via explicit `gp pr list ...` (any target count, including one) or the
 # no-id bare form (your open PRs).
 #   - no targets → your open PRs (optionally minus -x excludes)
 #   - targets    → exactly those PRs, any author, any state (naming them
-#     explicitly is not scoped to you — same principle as `git pr merge
+#     explicitly is not scoped to you — same principle as `gp pr merge
 #     <ids>`), optionally minus -x excludes
 # ══════════════════════════════════════════════════════════════════════════
 if [ "$subcmd" != "merge" ] && [ -z "$id" ]; then
@@ -984,7 +984,7 @@ if [ "$subcmd" != "merge" ] && [ -z "$id" ]; then
       --jq '.[] | "\(.number)\t\(.url)\t\(.title)"' 2>"$gh_err")" || rc=$?
     err="$(cat "$gh_err")"; rm -f "$gh_err"
     if [ "$rc" -ne 0 ]; then
-      echo "git pr: couldn't list PRs — ${err:-gh pr list failed (exit $rc)}" >&2
+      echo "gp pr: couldn't list PRs — ${err:-gh pr list failed (exit $rc)}" >&2
       exit 1
     fi
   else
@@ -1121,7 +1121,7 @@ if [ -n "$info" ]; then
     git config "branch.$branch.gitplus-pr" "$num" 2>/dev/null || true
     step "switched to $branch ${_dim}(PR #$num)${_off}"
   else
-    echo "git pr: couldn't check out PR #$num — '$branch' may have diverged; resolve by hand" >&2
+    echo "gp pr: couldn't check out PR #$num — '$branch' may have diverged; resolve by hand" >&2
     exit 1
   fi
   exit 0
@@ -1138,11 +1138,11 @@ if printf '%s' "$id" | grep -qE '^[0-9]+$'; then
     warn "couldn't reach GitHub — on existing $stamped (not updated)"
     exit 0
   fi
-  echo "git pr: couldn't find PR #$id (offline, or not a PR in this repo)" >&2; exit 1
+  echo "gp pr: couldn't find PR #$id (offline, or not a PR in this repo)" >&2; exit 1
 elif git show-ref --verify --quiet "refs/heads/$id"; then
   git switch --quiet "$id"
   warn "couldn't resolve a PR for '$id' via gh — switched to local branch as-is"
   exit 0
 else
-  echo "git pr: couldn't resolve '$id' to a PR or local branch" >&2; exit 1
+  echo "gp pr: couldn't resolve '$id' to a PR or local branch" >&2; exit 1
 fi

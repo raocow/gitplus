@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# git-account — tie directories to different git/ssh/GitHub identities.
+# gp-account — tie directories to different git/ssh/GitHub identities.
 #
 # Work split across more than one GitHub account — a personal one and an
 # employer's — normally means remembering to set user.email per clone and
@@ -15,12 +15,12 @@
 # to the directory you're standing in.
 #
 # Usage:
-#   git account add <name> --email <email> [--name <git name>]
+#   gp account add <name> --email <email> [--name <git name>]
 #                          [--host <host>] [--dir <path>] [--gh-user <user>]
-#   git account bind <name> <dir>   use <name>'s identity in <dir> and below
-#   git account list                accounts and their bound directories
-#   git account key <name>          print the public key to paste into the host
-#   git account check               verify every binding still applies
+#   gp account bind <name> <dir>   use <name>'s identity in <dir> and below
+#   gp account list                accounts and their bound directories
+#   gp account key <name>          print the public key to paste into the host
+#   gp account check               verify every binding still applies
 #
 # This lived in `devrig account` until gitplus grew a hard dependency on it:
 # every git-* command resolves the bound account before calling gh, so the
@@ -42,15 +42,15 @@ source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
 
 usage() {
   cat <<'EOF'
-git account — tie directories to different git/ssh/GitHub identities.
+gp account — tie directories to different git/ssh/GitHub identities.
 
-  git account add <name> --email <email> [--name <git name>]
+  gp account add <name> --email <email> [--name <git name>]
                          [--host <host>] [--dir <path>] [--gh-user <user>]
-  git account bind <name> <dir>   use <name>'s identity in <dir> and below
-  git account list                accounts and their bound directories
-  git account key <name>          print the public key to paste into the host
-  git account check               verify every binding still applies
-  git account -h                  show this help
+  gp account bind <name> <dir>   use <name>'s identity in <dir> and below
+  gp account list                accounts and their bound directories
+  gp account key <name>          print the public key to paste into the host
+  gp account check               verify every binding still applies
+  gp account -h                  show this help
 
 Nothing is sourced into your shell — git reads includeIf and ssh reads the
 Host alias on their own. `check` is the one worth running: a renamed or moved
@@ -216,7 +216,7 @@ acct_add() {
   local name="${1:-}"; shift 2>/dev/null || true
   local email="" gitname="" host="github.com" dir="" ghuser=""
   if ! _acct_valid_name "$name"; then
-    echo "git account: account name required (letters, digits, . _ - only)" >&2; return 2
+    echo "gp account: account name required (letters, digits, . _ - only)" >&2; return 2
   fi
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -225,11 +225,11 @@ acct_add() {
       --host)    host="${2:-}"; shift 2 || return 2 ;;
       --dir)     dir="${2:-}"; shift 2 || return 2 ;;
       --gh-user) ghuser="${2:-}"; shift 2 || return 2 ;;
-      *) echo "git account: unknown option '$1'" >&2; return 2 ;;
+      *) echo "gp account: unknown option '$1'" >&2; return 2 ;;
     esac
   done
-  [ -n "$email" ] || { echo "git account: --email is required" >&2; return 2; }
-  [ -n "$host" ]  || { echo "git account: --host cannot be empty" >&2; return 2; }
+  [ -n "$email" ] || { echo "gp account: --email is required" >&2; return 2; }
+  [ -n "$host" ]  || { echo "gp account: --host cannot be empty" >&2; return 2; }
   gitname="${gitname:-$name}"
 
   local key alias identity
@@ -288,7 +288,7 @@ acct_add() {
     if [ "$existing" = "$ghuser" ]; then
       echo "gh user already recorded: $ghuser"
     elif [ -n "$existing" ]; then
-      echo "git account: gh user already set to '$existing' for '$name' — edit the" >&2
+      echo "gp account: gh user already set to '$existing' for '$name' — edit the" >&2
       echo "  # gitplus:ghuser:$name line in $SSH_CONFIG by hand to change it" >&2
     else
       printf '# gitplus:ghuser:%s %s\n' "$name" "$ghuser" >> "$SSH_CONFIG"
@@ -314,12 +314,12 @@ acct_add() {
 acct_bind() {
   local name="${1:-}" dir="${2:-}"
   if ! _acct_valid_name "$name"; then
-    echo "git account: account name required" >&2; return 2
+    echo "gp account: account name required" >&2; return 2
   fi
-  [ -n "$dir" ] || { echo "git account: directory required" >&2; return 2; }
+  [ -n "$dir" ] || { echo "gp account: directory required" >&2; return 2; }
   local identity; identity="$(_acct_identity "$name")"
   if [ ! -f "$identity" ]; then
-    echo "git account: no such account '$name' (run: git account add $name --email ...)" >&2
+    echo "gp account: no such account '$name' (run: gp account add $name --email ...)" >&2
     return 1
   fi
   dir="$(_acct_abspath "$dir")"
@@ -353,7 +353,7 @@ acct_bind() {
 acct_list() {
   local names; names="$(_acct_names)"
   if [ -z "$names" ]; then
-    echo "no accounts registered (git account add <name> --email <email>)"
+    echo "no accounts registered (gp account add <name> --email <email>)"
     return 0
   fi
   local n line d
@@ -380,9 +380,9 @@ EOF
 
 acct_key() {
   local name="${1:-}" key
-  _acct_valid_name "$name" || { echo "git account: account name required" >&2; return 2; }
+  _acct_valid_name "$name" || { echo "gp account: account name required" >&2; return 2; }
   key="$(_acct_key "$name").pub"
-  [ -f "$key" ] || { echo "git account: no public key for '$name' ($key)" >&2; return 1; }
+  [ -f "$key" ] || { echo "gp account: no public key for '$name' ($key)" >&2; return 1; }
   cat "$key"
 }
 
@@ -481,7 +481,7 @@ cmd_account() {
     # Internal, not in `devrig help` — used by the ghswitch shell feature.
     _gh-for-dir) shift; acct_gh_for_dir "$@" ;;
     _access-for-dir) shift; acct_access_for_dir "$@" ;;
-    *) echo "git account: unknown command '$1' (add, bind, list, key, check)" >&2; return 2 ;;
+    *) echo "gp account: unknown command '$1' (add, bind, list, key, check)" >&2; return 2 ;;
   esac
 }
 
