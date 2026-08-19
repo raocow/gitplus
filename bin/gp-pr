@@ -104,6 +104,11 @@
 # -x/--exclude composes with this: a method flag ends an -x run like any other
 # flag, and it only ever claims targets, never excludes.
 #
+# Stacked PRs (PR B's base is PR A's head) are handled automatically: when
+# A is merged, B is retargeted to A's base so the stack doesn't break. When
+# merging multiple stacked PRs at once, they're sorted bottom-up so the base
+# merges first.
+#
 # Branches are never auto-deleted after merge — run `gp sweep` afterward.
 #
 # (Named `gp pr`, not `git switch`: git always prefers its built-in `switch`
@@ -622,8 +627,60 @@ if [ "$subcmd" = "merge" ]; then
   order=()
   while IFS=$'\t' read -r _ovnum num; do order+=("$num"); done < <(sort -n -k1,1 -k2,2 "$overlap_input")
 
+  # Stack-aware reorder: if PR A's base branch is PR B's head branch, B must
+  # merge first. Stable — non-stacked PRs keep their overlap-based position.
+  if [ -s "$tmp/meta" ] && [ "${#order[@]}" -gt 1 ]; then
+    stack_sorted="$(awk -F'\t' '
+      NR == FNR { cands[++N] = $1; is_cand[$1] = 1; next }
+      ($1 in is_cand) { head[$1] = $2; base[$1] = $3 }
+      END {
+        for (i = 1; i <= N; i++) depth[cands[i]] = 0
+        changed = 1
+        while (changed) {
+          changed = 0
+          for (i = 1; i <= N; i++) {
+            p = cands[i]
+            for (j = 1; j <= N; j++) {
+              q = cands[j]
+              if (p != q && base[p] == head[q] && depth[p] <= depth[q]) {
+                depth[p] = depth[q] + 1; changed = 1
+              }
+            }
+          }
+        }
+        for (i = 1; i <= N; i++)
+          printf "%d\t%d\t%s\n", depth[cands[i]], i, cands[i]
+      }
+    ' <(printf '%s\n' ${order[@]+"${order[@]}"}) "$tmp/meta" \
+      | sort -n -k1,1 -k2,2 | cut -f3)"
+    order=()
+    while IFS= read -r num; do [ -n "$num" ] && order+=("$num"); done <<< "$stack_sorted"
+  fi
+
   title_of() { grep -m1 "^$1"$'\t' "$titles_file" | cut -f2-; }
   meta_of()  { grep -m1 "^$1"$'\t' "$tmp/meta"; }   # num\thead\tbase
+
+  # After merging a PR, retarget any open PRs whose base is the merged branch
+  # so the stack doesn't break. This is the thing that makes stacked PRs work:
+  # merge the bottom, children get retargeted to main (or whatever the parent
+  # was targeting), and they're ready to merge next.
+  retarget_children() {
+    local merged_head="$1" merged_base="$2" is_dry="$3"
+    local children
+    children="$(gh pr list --base "$merged_head" --state open \
+      --json number,title --jq '.[] | "\(.number)\t\(.title)"' 2>/dev/null)" || return 0
+    [ -n "$children" ] || return 0
+    while IFS=$'\t' read -r child_num child_title; do
+      [ -n "$child_num" ] || continue
+      if [ "$is_dry" = 1 ]; then
+        step "would retarget #$child_num ${_dim}($child_title)${_off} ${_branch}[-> $merged_base]${_off}"
+      elif gh pr edit "$child_num" --base "$merged_base" >/dev/null 2>&1; then
+        step "retargeted #$child_num ${_dim}($child_title)${_off} ${_branch}[-> $merged_base]${_off}"
+      else
+        warn "couldn't retarget #$child_num to $merged_base"
+      fi
+    done <<< "$children"
+  }
 
   # Retry `gh pr merge` a few times with a short pause. Right after a push,
   # GitHub can take a moment to recompute mergeability — an immediate merge
@@ -693,11 +750,13 @@ if [ "$subcmd" = "merge" ]; then
     case "$status" in
       CLEAN|UNSTABLE)
         if [ "$dry" = 1 ]; then
-          plan+=("#$num $title -- merge ($pr_method)"); continue
+          plan+=("#$num $title -- merge ($pr_method)")
+          retarget_children "$head" "$base" 1; continue
         fi
         if err="$(merge_with_retry "$num" "$pr_flag")"; then
           step "merged #$num ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
           merged+=("#$num $title")
+          retarget_children "$head" "$base" 0
         else
           warn "merge failed for #$num — ${err##*$'\n'}"
           skipped+=("#$num $title -- merge failed: ${err##*$'\n'}")
@@ -710,7 +769,7 @@ if [ "$subcmd" = "merge" ]; then
           else
             plan+=("#$num $title -- rebase onto $base, then merge ($pr_method)")
           fi
-          continue
+          retarget_children "$head" "$base" 1; continue
         fi
         # BEHIND (not DIRTY) means GitHub hasn't found a textual conflict —
         # its own merge does a real three-way merge server-side and often
@@ -721,6 +780,7 @@ if [ "$subcmd" = "merge" ]; then
         if [ "$status" = "BEHIND" ] && gh pr merge "$num" "$pr_flag" >/dev/null 2>&1; then
           step "merged #$num ${_dim}($title, no rebase needed)${_off} ${_branch}[$head -> $base]${_off}"
           merged+=("#$num $title")
+          retarget_children "$head" "$base" 0
           merged_directly=1
         fi
         if [ "$merged_directly" = 0 ]; then
@@ -739,6 +799,7 @@ if [ "$subcmd" = "merge" ]; then
               if err="$(merge_with_retry "$num" "$pr_flag")"; then
                 step "rebased + merged #$num ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
                 merged+=("#$num $title")
+                retarget_children "$head" "$base" 0
               else
                 warn "rebased #$num but merge still hasn't gone through — rerun 'gp pr merge $num' to retry"
                 skipped+=("#$num $title -- rebased and pushed; merge pending (rerun to retry)")
@@ -765,6 +826,7 @@ if [ "$subcmd" = "merge" ]; then
         if err="$(merge_with_retry "$num" "$pr_flag")"; then
           step "merged #$num ${_dim}($title)${_off} ${_branch}[$head -> $base]${_off}"
           merged+=("#$num $title")
+          retarget_children "$head" "$base" 0
         else
           warn "skipping #$num — $status: ${err##*$'\n'}"
           skipped+=("#$num $title -- $status: ${err##*$'\n'}")
