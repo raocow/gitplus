@@ -49,6 +49,8 @@ case "$cmd" in
       exec "$BIN_DIR/gp-$cmd" "$@"
     elif command -v "gp-$cmd" >/dev/null 2>&1; then
       exec "gp-$cmd" "$@"
+    elif git help "$cmd" >/dev/null 2>&1; then
+      exec git "$cmd" "$@"
     else
       echo "gp: unknown command '$cmd' (try: gp help)" >&2; exit 1
     fi ;;
