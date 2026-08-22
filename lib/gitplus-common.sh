@@ -33,7 +33,7 @@ resolve_base() {
   if [ -n "$explicit" ]; then echo "$explicit"; return; fi
   local base
   base=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
-    | sed 's#^origin/##' || true)
+    | sed 's#^remotes/##;s#^origin/##' || true)
   if [ -z "$base" ]; then
     local b
     for b in main master; do

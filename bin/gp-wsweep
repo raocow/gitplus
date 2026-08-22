@@ -102,7 +102,7 @@ git fetch --prune --quiet 2>/dev/null || true
 base="$(resolve_base "$base")"
 
 if git show-ref --verify --quiet "refs/remotes/origin/$base"; then
-  mergeref="origin/$base"
+  mergeref="refs/remotes/origin/$base"
 elif git show-ref --verify --quiet "refs/heads/$base"; then
   mergeref="$base"
 else

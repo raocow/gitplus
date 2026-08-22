@@ -201,8 +201,8 @@ sync_one() {  # sync_one <branch> <create_remote 0|1>
     if [ "$dir" = "." ]; then
       git checkout --quiet "$b" 2>/dev/null || { skipped+=("$b (checkout failed)"); return; }
     fi
-    if [ "$(git -C "$dir" rev-parse HEAD)" = "$(git -C "$dir" rev-parse "origin/$base")" ]; then uptodate+=("$b"); return; fi
-    if git -C "$dir" rebase "origin/$base" >/dev/null 2>&1; then pulled+=("$b"); else
+    if [ "$(git -C "$dir" rev-parse HEAD)" = "$(git -C "$dir" rev-parse "refs/remotes/origin/$base")" ]; then uptodate+=("$b"); return; fi
+    if git -C "$dir" rebase "refs/remotes/origin/$base" >/dev/null 2>&1; then pulled+=("$b"); else
       git -C "$dir" rebase --abort >/dev/null 2>&1 || true; conflicts+=("$b"); fi
     return
   fi
@@ -224,7 +224,7 @@ sync_one() {  # sync_one <branch> <create_remote 0|1>
   # The reaction gp pr merge has when a rebase can't finish: abort it (leave the
   # branch exactly as it was), and record it for the "conflicts" report — never a
   # half-finished rebase left in the tree.
-  if ! git -C "$dir" rebase "origin/$base" >/dev/null 2>&1; then
+  if ! git -C "$dir" rebase "refs/remotes/origin/$base" >/dev/null 2>&1; then
     git -C "$dir" rebase --abort >/dev/null 2>&1 || true
     conflicts+=("$b"); return
   fi
@@ -297,7 +297,7 @@ if [ "$dry" = 1 ]; then
     while IFS= read -r b; do
       [ "$b" = "$base" ] && continue
       case "$excl" in *" $b "*) echo "  skip (excluded): $b"; continue ;; esac
-      if git merge-base --is-ancestor "$b" "origin/$base" 2>/dev/null; then
+      if git merge-base --is-ancestor "$b" "refs/remotes/origin/$base" 2>/dev/null; then
         echo "  prune (merged):  $b"
       else
         echo "  rebase + push:   $b"
@@ -342,13 +342,13 @@ if [ "$all" = 1 ]; then
   # Fast-forward local base to the remote tip so the merged-check (and the
   # eventual `branch -d`) sees current state. Best effort — skip if diverged.
   if [ "$current" != "$base" ]; then git checkout --quiet "$base" 2>/dev/null || true; fi
-  git merge --ff-only "origin/$base" >/dev/null 2>&1 \
+  git merge --ff-only "refs/remotes/origin/$base" >/dev/null 2>&1 \
     || echo "note: local '$base' didn't fast-forward (diverged?) — continuing." >&2
 
   while IFS= read -r b; do
     [ "$b" = "$base" ] && continue
     if is_excluded "$b"; then skipped+=("$b (excluded)"); continue; fi
-    if git merge-base --is-ancestor "$b" "origin/$base" 2>/dev/null; then
+    if git merge-base --is-ancestor "$b" "refs/remotes/origin/$base" 2>/dev/null; then
       # `git branch -d` refuses a branch checked out in another worktree too
       # (same underlying rule) — worth naming up front rather than a vague
       # "(couldn't delete)" for something that was never going to work.

@@ -55,10 +55,10 @@ _ff_base() {
   local base="$1" behind noun
   git show-ref --verify --quiet "refs/remotes/origin/$base" || return 0
   git fetch --quiet origin --prune 2>/dev/null || true
-  behind=$(git rev-list --count "$base..origin/$base" 2>/dev/null || echo 0)
+  behind=$(git rev-list --count "$base..refs/remotes/origin/$base" 2>/dev/null || echo 0)
   if [ "$behind" -gt 0 ]; then
     if [ "$behind" = 1 ]; then noun=commit; else noun=commits; fi
-    if git merge --ff-only "origin/$base" >/dev/null 2>&1; then
+    if git merge --ff-only "refs/remotes/origin/$base" >/dev/null 2>&1; then
       step "fast-forwarded $base to origin/$base ${_dim}(+$behind $noun)${_off}"
     else
       warn "couldn't fast-forward $base (diverged or offline) — left as is"

@@ -181,11 +181,22 @@ base="$(resolve_base "$base")"
 # when your local <base> is stale (no `git pull` needed) and no matter which
 # branch you're on. Fall back to the local branch when offline / no remote.
 if git show-ref --verify --quiet "refs/remotes/origin/$base"; then
-  mergeref="origin/$base"
+  mergeref="refs/remotes/origin/$base"
+  mergeref_display="origin/$base"
 elif git show-ref --verify --quiet "refs/heads/$base"; then
   mergeref="$base"
+  mergeref_display="$base"
 else
   echo "gp sweep: base '$base' not found locally or on origin" >&2; exit 1
+fi
+
+# A local branch named origin/<base> shadows the remote-tracking ref and makes
+# every bare `origin/<base>` reference ambiguous. Use fully-qualified refs
+# internally and report it once at the end, not on every git call.
+_shadow_warning=""
+if git show-ref --verify --quiet "refs/heads/origin/$base"; then
+  _shadow_warning="origin/$base"
+  trap 'if [ -n "$_shadow_warning" ]; then warn "local branch '\''$_shadow_warning'\'' shadows the remote-tracking ref — delete it with: git branch -d '\''$_shadow_warning'\''"; fi' EXIT
 fi
 
 current=$(git rev-parse --abbrev-ref HEAD)
@@ -307,7 +318,7 @@ EOF
     if [ "$force" = 1 ]; then
       echo "gp sweep: no other branches to delete."
     else
-      echo "gp sweep: nothing merged into '$mergeref' to delete."
+      echo "gp sweep: nothing merged into '$mergeref_display' to delete."
     fi
     exit 0
   fi
@@ -329,12 +340,12 @@ if [ "$dry" = 1 ]; then
       fi
       for b in $targets; do echo "  $b"; done
     else
-      echo "Would delete LOCAL (merged into '$mergeref'):"
+      echo "Would delete LOCAL (merged into '$mergeref_display'):"
       for b in $targets; do
         if git merge-base --is-ancestor "$b" "$mergeref" || is_squash_merged "$b"; then
           echo "  $b"
         else
-          echo "  $b ${_dim}(skip — not merged into $mergeref)${_off}"
+          echo "  $b ${_dim}(skip — not merged into $mergeref_display)${_off}"
         fi
       done
     fi
@@ -345,12 +356,12 @@ if [ "$dry" = 1 ]; then
       echo "Would FORCE-delete on ORIGIN ${_warn}(shared state, includes unmerged work)${_off}:"
       for b in $rtargets; do echo "  origin/$b"; done
     else
-      echo "Would delete on ORIGIN ${_warn}(shared state)${_off} (merged into '$mergeref'):"
+      echo "Would delete on ORIGIN ${_warn}(shared state)${_off} (merged into '$mergeref_display'):"
       for b in $rtargets; do
-        if git merge-base --is-ancestor "origin/$b" "$mergeref" || is_squash_merged "$b"; then
+        if git merge-base --is-ancestor "refs/remotes/origin/$b" "$mergeref" || is_squash_merged "$b"; then
           echo "  origin/$b"
         else
-          echo "  origin/$b ${_dim}(skip — not merged into $mergeref)${_off}"
+          echo "  origin/$b ${_dim}(skip — not merged into $mergeref_display)${_off}"
         fi
       done
     fi
@@ -383,7 +394,7 @@ else
     if git merge-base --is-ancestor "$b" "$mergeref" || is_squash_merged "$b"; then
       _del "$b"
     else
-      warn "skipped $b — not merged into $mergeref"
+      warn "skipped $b — not merged into $mergeref_display"
     fi
   done
 fi
@@ -394,10 +405,10 @@ fi
 if [ -n "$rtargets" ]; then
   rdel=""
   for b in $rtargets; do
-    if [ "$force" = 1 ] || git merge-base --is-ancestor "origin/$b" "$mergeref" || is_squash_merged "$b"; then
+    if [ "$force" = 1 ] || git merge-base --is-ancestor "refs/remotes/origin/$b" "$mergeref" || is_squash_merged "$b"; then
       rdel="$rdel $b"
     else
-      warn "skipped origin/$b — not merged into $mergeref"
+      warn "skipped origin/$b — not merged into $mergeref_display"
     fi
   done
   rdel=$(echo $rdel)
@@ -421,3 +432,4 @@ if [ -n "$rtargets" ]; then
     fi
   fi
 fi
+
