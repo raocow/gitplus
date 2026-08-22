@@ -140,18 +140,47 @@ pr_merged_into() {
   printf '%s\n' "$n"
 }
 
-# merged_pr_heads_into <base> — the head branch name of every merged PR into
-# <base>, one per line. The batch form of pr_merged_into, for callers that
-# have to judge many branches at once (gp sweep): one API call regardless of
-# branch count, instead of one per branch, which in a squash-merging repo
-# would mean a network round trip for every branch in the repo. Prints
-# nothing if gh is unavailable, so callers degrade to the ancestor test.
+# merged_pr_heads_into <base> — the head branch name of every merged PR that
+# reaches <base>, directly OR transitively through a chain of merged stacked
+# PRs, one per line. The batch form of pr_merged_into, for callers that have
+# to judge many branches at once (gp sweep): one API call regardless of
+# branch count or stack depth, instead of one per branch. Prints nothing if
+# gh is unavailable, so callers degrade to the ancestor test.
+#
+# Transitive because a squash- or rebase-merge breaks ancestry: if child C's
+# PR was merged into intermediate branch P (base=P), and P's PR was later
+# merged into <base> (base=<base>), C's commits are NOT reachable from
+# <base> — a squash replaces P's whole history, C's included, with one new
+# commit. The direct-only version of this check would miss C entirely once
+# P is gone, even though C's work is fully landed. Fetching every merged
+# PR's head/base pair once and closing over it locally catches any stack
+# depth for the same single API call.
 merged_pr_heads_into() {
-  local base="$1"
+  local base="$1" pairs
   gh_scope_to_repo
   command -v gh >/dev/null 2>&1 || return 0
-  gh pr list --base "$base" --state merged --limit 200 \
-    --json headRefName --jq '.[].headRefName' 2>/dev/null || true
+  pairs="$(gh pr list --state merged --limit 500 \
+    --json headRefName,baseRefName \
+    --jq '.[] | "\(.headRefName)\t\(.baseRefName)"' 2>/dev/null)" || return 0
+  [ -n "$pairs" ] || return 0
+  awk -F'\t' -v base="$base" '
+    { head[NR] = $1; from[NR] = $2; n = NR }
+    END {
+      reached[base] = 1
+      changed = 1
+      while (changed) {
+        changed = 0
+        for (i = 1; i <= n; i++) {
+          if ((from[i] in reached) && !(head[i] in reached)) {
+            reached[head[i]] = 1; changed = 1
+          }
+        }
+      }
+      for (h in reached) if (h != base) print h
+    }
+  ' <<EOF
+$pairs
+EOF
 }
 
 # worktree_path_for_branch <branch> — a branch can be checked out in at most
