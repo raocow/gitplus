@@ -338,12 +338,22 @@ if [ "$dry" = 1 ]; then
         [ "$current" != "$base" ] && except="$except and '$current'"
         echo "Would FORCE-delete LOCAL (every local branch except $except):"
       fi
-      for b in $targets; do echo "  $b"; done
+      for b in $targets; do
+        if _wt="$(worktree_path_for_branch "$b")"; then
+          echo "  $b ${_dim}(skip — checked out in another worktree: $_wt)${_off}"
+        else
+          echo "  $b"
+        fi
+      done
     else
       echo "Would delete LOCAL (merged into '$mergeref_display'):"
       for b in $targets; do
         if git merge-base --is-ancestor "$b" "$mergeref" || is_squash_merged "$b"; then
-          echo "  $b"
+          if _wt="$(worktree_path_for_branch "$b")"; then
+            echo "  $b ${_dim}(skip — checked out in another worktree: $_wt)${_off}"
+          else
+            echo "  $b"
+          fi
         else
           echo "  $b ${_dim}(skip — not merged into $mergeref_display)${_off}"
         fi
@@ -372,7 +382,16 @@ fi
 # Delete quietly and narrate each removal in the shared format (one line per
 # branch) instead of leaking git's raw "Deleted branch ..." output.
 _del() {  # _del <branch>
-  local b="$1" sha
+  local b="$1" sha wt
+  # `git branch -D` refuses a branch checked out in ANOTHER worktree — a hard
+  # git rule that -D does not override. Name that case up front: it is the
+  # common reason a sweep can't delete something, and a bare "couldn't delete"
+  # sends you looking for a permissions or protection problem that isn't there.
+  # `gp wsweep` is the command that clears those (worktree first, then branch).
+  if wt="$(worktree_path_for_branch "$b")"; then
+    warn "skipped $b — checked out in another worktree: $wt ${_dim}(gp wsweep removes those)${_off}"
+    return 0
+  fi
   sha=$(git rev-parse --short "$b" 2>/dev/null || echo '?')
   if git branch -D "$b" >/dev/null 2>&1; then
     step "deleted $b ${_dim}(was $sha)${_off}"
