@@ -19,6 +19,7 @@ case $state in
       'account:per-directory identities'
       'haspr:check for open PR'
       'wsweep:delete stale worktrees'
+      'pl:shorthand for pr list'
       'help:show help'
       'version:print version'
     )

@@ -1,0 +1,9 @@
+#autoload
+#
+# Completion for `gp pl`, the shorthand for `gp pr list`. Rather than restate
+# that grammar here and let the two drift apart, rewrite the word array into
+# the form _gp-pr expects (`pr list ...`) and hand off to it — so the
+# shorthand always completes exactly like the command it stands for.
+words=(pr list "${(@)words[2,-1]}")
+(( CURRENT += 1 ))
+_gp-pr

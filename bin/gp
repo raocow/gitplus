@@ -27,6 +27,9 @@ Commands:
   haspr       check whether a branch has an open PR
   wsweep      delete worktrees whose branches are gone
 
+Shorthands:
+  pl          = gp pr list
+
   gp help     show this help
   gp version  print the installed version
 HELP
@@ -34,6 +37,15 @@ HELP
 
 cmd="${1:-help}"
 shift 2>/dev/null || true
+
+# Shorthands for the handful of things typed often enough that the subcommand
+# is pure friction. Expanded into <command> + leading args here, BEFORE the
+# dispatch below, so a shorthand resolves through exactly the same lookup as
+# the command it stands for — no duplicated gp-* resolution to drift, and the
+# rest of the arguments pass through untouched (`gp pl -a`, `gp pl 12 13`).
+case "$cmd" in
+  pl) cmd=pr; set -- list ${1+"$@"} ;;
+esac
 
 case "$cmd" in
   help|--help|-h)       usage ;;
