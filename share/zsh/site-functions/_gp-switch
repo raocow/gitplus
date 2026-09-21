@@ -1,0 +1,21 @@
+#autoload
+#
+# Completion for `gp switch` — real branches, real worktree names, open PRs
+# (all valid ways to name the same target), plus '.'/'@' for the current
+# branch. Offered together since any of them resolves to the same thing.
+# Flags only surface once you type a leading '-': the common set gp-switch
+# recognizes itself, plus git switch's own — everything past those passes
+# straight through to real `git switch`, so completing them here is purely a
+# convenience, not something gp-switch's own logic depends on.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  _message -r 'not inside a git repository'; return
+fi
+if [[ $PREFIX == -* ]]; then
+  _alternative 'flags:Flag:(-h --help -c -C --detach -d --orphan --track --no-track --discard-changes --ignore-other-worktrees --recurse-submodules --no-recurse-submodules --guess --no-guess -q --quiet -f --force -m --merge --progress --no-progress)'
+  return
+fi
+_alternative \
+  'worktrees:Worktree:_gitplus_worktree_names' \
+  'branches:Branch:_gitplus_branch_names' \
+  'ids:PR:_gitplus_pr_nums' \
+  'current:Current branch:(. @)'

@@ -10,7 +10,7 @@ done
 BIN_DIR="$(cd -P "$(dirname "$_src")" && pwd)"
 
 usage() {
-  cat <<HELP
+  cat <<'HELP'
 gp (gitplus) — personal git tooling
 
 Usage: gp <command> [args...]
@@ -20,7 +20,7 @@ Commands:
   sweep       delete merged branches (local and/or remote)
   done        finish: merge-base check, push, delete branch
   sync        rebase branches onto their base
-  swap        switch to another worktree or branch
+  switch      everything `git switch` does, plus worktree/PR-aware resolution
   new         create a branch and switch to it
   release     tag and publish a GitHub release
   account     manage per-directory git/ssh/GitHub identities
@@ -29,6 +29,9 @@ Commands:
 
 Shorthands:
   pl          = gp pr list
+
+Aliases:
+  swap        = switch
 
   gp help     show this help
   gp version  print the installed version

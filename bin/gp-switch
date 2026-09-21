@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+#
+# gp-switch — everything `git switch` does, plus branch/worktree/PR-aware
+# resolution and auto-freeing a branch from another worktree.
+#
+# The plain, single-target case (`gp switch <id>`, optionally with ordinary
+# flags like -q) is the one this adds value to: <id> can be a branch name, a
+# WORKTREE name (its directory name or full path), a PR number, a URL, or
+# '.'/'@' (the current branch) — resolved to a branch, then handed to real
+# `git switch`. If that branch is already checked out in ANOTHER worktree —
+# normally a hard stop, since a branch can only be checked out in one
+# worktree at a time — this detaches that OTHER worktree's HEAD first (safe:
+# doesn't touch its working tree, just stops it holding the branch name) so
+# the checkout here can proceed. One-way: your current branch is NOT
+# relocated to that other worktree, which is left on a detached HEAD at the
+# same commit it already had.
+#
+# Anything that changes what the positional argument(s) mean — creating a
+# branch (-c/-C), detaching (--detach/-d), starting an orphan branch
+# (--orphan), an explicit `--` end-of-options marker, git's own `-`
+# (previous branch) shorthand, or a start-point given alongside -c/-C — is
+# NOT reimplemented here. It's recognized and handed to the real `git
+# switch` untouched, so every flag git switch has just works, with no
+# parsing of ours to drift out of sync with git's own. Same for zero or 2+
+# plain arguments: that's either a usage error or the -c/start-point form,
+# and git's own message is the right one to show.
+#
+# Usage:
+#   gp switch <branch|worktree|PR#|url|.|@> [git switch flags]
+#                                           check it out here, freeing it
+#                                           from another worktree if needed
+#   gp switch <git switch's own usage>      anything else — passed straight
+#                                           through to git switch
+#   gp switch -h                            show this help
+#
+set -euo pipefail
+
+# Resolve this script's real location (following symlinks — it's installed as
+# one) to find lib/gitplus-common.sh, shared across the gp-* tools:
+# require_git_repo(), branch_in_worktree_named() and
+# free_branch_from_other_worktree() here.
+_src="${BASH_SOURCE[0]}"
+while [ -h "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/gitplus-common.sh"
+
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+gp switch — everything `git switch` does, plus branch/worktree/PR resolution.
+
+The plain case, `gp switch <id>` (ordinary flags like -q are fine alongside
+it): <id> can be a branch name, a WORKTREE name (its directory name or full
+path), a PR number, a URL, or '.'/'@' (the current branch). Naming the
+worktree is often what you actually remember — the branch inside it is the
+thing you were trying to look up. A branch name wins if both match.
+
+If that branch is checked out in ANOTHER worktree — normally a hard stop,
+since a branch can only be checked out in one worktree at a time — this
+detaches that OTHER worktree's HEAD first (safe: doesn't touch its working
+tree, just frees the branch name) and checks the branch out here. One-way:
+your current branch is not relocated there; that worktree is left detached
+at the commit it already had.
+
+Anything that changes what the argument(s) mean — -c/-C (create), --detach,
+--orphan, a `--` marker, git's own `-` (previous branch), or a start-point
+alongside -c/-C — is passed straight through to the real `git switch`
+untouched, so every flag it has works exactly as documented there.
+
+Usage:
+  gp switch <branch|worktree|PR#|url|.|@> [flags]   check it out here
+  gp switch <git switch's own usage>                passed straight through
+  gp switch -h                                      show this help
+EOF
+    exit 0 ;;
+esac
+
+require_git_repo "gp switch"
+
+# Anything that changes the grammar of the positional argument(s) — handed
+# straight to real git switch, untouched. Checked as exact tokens, not
+# prefix/substring, so e.g. a branch literally named "--detach-hotfix" isn't
+# mistaken for the flag.
+for _a in "$@"; do
+  case "$_a" in
+    -c|-C|--detach|-d|--orphan|--) exec git switch "$@" ;;
+  esac
+done
+
+# Collect the non-flag (positional) arguments, remembering where the first
+# one sits in $@ so it can be substituted in place below — everything else
+# (flags, their relative order) passes through exactly as given.
+positionals=()
+target_idx=-1
+i=0
+for _a in "$@"; do
+  case "$_a" in
+    -*) ;;
+    *)
+      positionals+=("$_a")
+      [ "$target_idx" = -1 ] && target_idx=$i
+      ;;
+  esac
+  i=$((i + 1))
+done
+
+# Zero positionals (a usage error), 2+ (the -c/start-point form without -c —
+# already a syntax error on git's side), or git's own '-' (previous branch,
+# which needs no resolution of ours): all handed to real git switch as-is,
+# so its own error or behavior is what's shown — never one we invented.
+if [ "${#positionals[@]}" -ne 1 ] || [ "${positionals[0]}" = "-" ]; then
+  exec git switch "$@"
+fi
+
+id="${positionals[0]}"
+branch="$id"
+
+# '.'/'@' means the current branch (same convention as gp pr/gp sync).
+if [ "$branch" = "." ] || [ "$branch" = "@" ]; then
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+fi
+
+# A PR number or URL resolves to its head branch via `gh`. Falls through to
+# treating the original token as a literal branch name if `gh` isn't
+# available or the lookup fails (offline, no such PR) — same fallback
+# posture as gp-sync's resolve_target().
+if printf '%s' "$branch" | grep -qE '^[0-9]+$|://'; then
+  resolved="$(gh pr view "$branch" --json headRefName --jq '.headRefName' 2>/dev/null || true)"
+  [ -n "$resolved" ] && branch="$resolved"
+fi
+
+# Not a branch, but the name of a worktree? Use whatever branch is checked out
+# there. Deliberately only after the branch check, so a real branch of that
+# name always wins and this can't quietly retarget an existing name.
+if ! git show-ref --verify --quiet "refs/heads/$branch" \
+   && ! git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+  wt_branch="$(branch_in_worktree_named "$branch" 2>/dev/null || true)"
+  if [ -n "$wt_branch" ]; then
+    step "'$branch' is a worktree ${_dim}(holding $wt_branch)${_off}"
+    branch="$wt_branch"
+  fi
+fi
+
+current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [ "$branch" = "$current" ]; then
+  step "already on $branch"
+  exit 0
+fi
+
+free_branch_from_other_worktree "$branch" || exit 1
+
+# Splice the resolved branch back into the ORIGINAL argv in the target's
+# original position, leaving every other flag exactly where and as given.
+# --quiet is added unless already present: every other gp-* command narrates
+# its own "✓ ..." step line instead of git's raw output, and gp-swap always
+# did the same here — this just keeps that default now that other flags can
+# ride along too.
+args=("$@")
+args[$target_idx]="$branch"
+case " ${args[*]} " in
+  *" -q "*|*" --quiet "*) ;;
+  *) args=(--quiet "${args[@]}") ;;
+esac
+
+if git switch "${args[@]}" 2>/dev/null; then
+  step "switched to $branch"
+  exit 0
+fi
+
+# Not a local branch (yet) — try creating one tracking origin's, same as
+# gp-sync's "named target that isn't local yet" fallback. Extra flags from
+# the original call are dropped here rather than guessed at: -c/--track
+# already own this invocation's shape, and stacking arbitrary passthrough
+# flags on top of them risks a combination git switch itself would reject.
+if git switch --quiet -c "$branch" --track "origin/$branch" >/dev/null 2>&1; then
+  step "switched to $branch ${_dim}(new, tracking origin/$branch)${_off}"
+  exit 0
+fi
+
+echo "gp switch: couldn't check out '$branch' — no such branch, worktree, or PR (try 'gp pr $id' if it's a PR)" >&2
+exit 1
