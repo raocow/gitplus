@@ -30,9 +30,6 @@ Commands:
 Shorthands:
   pl          = gp pr list
 
-Aliases:
-  swap        = switch
-
   gp help     show this help
   gp version  print the installed version
 HELP

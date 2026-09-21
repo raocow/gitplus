@@ -1,0 +1,102 @@
+.TH GP-SWITCH 1 "2026-09-21" "gitplus" "gitplus Manual"
+.SH NAME
+gp-switch \- everything git switch does, plus branch/worktree/PR resolution
+.SH SYNOPSIS
+.B gp switch
+.RI ( BRANCH | WORKTREE | PR# | URL |.|@)
+.RI [ "git switch flags" ]
+.br
+.B gp switch
+.RI [ "git switch's own usage" ]
+.br
+.B gp switch
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+.B gp switch
+is a superset of
+.BR "git switch" :
+anything that changes what the positional argument(s) mean \(em
+.BR \-c / \-C
+(create a branch),
+.BR \-\-detach / \-d ,
+.BR \-\-orphan ,
+an explicit
+.B \-\-
+end-of-options marker, git's own
+.B \-
+(previous branch) shorthand, or a start-point given alongside
+.BR \-c / \-C
+\(em is recognized by exact token and handed straight to the real
+.B git switch
+untouched. None of that grammar is reimplemented, so every flag
+.B git switch
+has works exactly as documented there, with nothing of gitplus's own to
+drift out of sync with git's.
+.PP
+The plain case \(em one target, plus ordinary flags like
+.B \-q
+\(em is where this adds value. The target can be a branch name, a
+.B WORKTREE
+name (its directory name or full path), a PR number, a PR URL, or
+.RI ' . '/' @ '
+(the current branch). Naming the worktree is often what you actually
+remember \(em the branch inside it is the thing you were trying to look up.
+A real branch name always wins if a branch and a worktree share a name.
+.PP
+A branch can only ever be checked out in one worktree at a time (a hard git
+rule) \(em normally a hard stop:
+.B "gp pr"
+and
+.B "gp sync"
+just refuse and report where the branch already is. If the resolved target
+is checked out in
+.I another
+worktree,
+.B gp switch
+instead frees it: it detaches that
+.I other
+worktree's HEAD at its current commit (safe \(em doesn't touch that
+worktree's working tree or any uncommitted changes there at all, it just
+stops it holding the branch name), then checks the branch out in the
+.B current
+worktree. This is one\-way: your current branch is
+.B not
+relocated to that other worktree, which is left on a detached HEAD at the
+commit it already had.
+.PP
+.B "gp pr <id>"
+uses the same free-it-first logic internally, so checking out a PR whose
+branch is checked out elsewhere just works instead of refusing.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.PP
+Every other flag
+.B git switch
+accepts is passed through \(em see
+.BR git-switch (1)
+for the full list.
+.SH EXAMPLES
+.TP
+.B gp switch spec-first
+Free
+.I spec-first
+from wherever it's checked out and switch to it here.
+.TP
+.B gp switch 132
+Same, but naming a PR number instead of its head branch.
+.TP
+.B gp switch wt-hotfix
+Same, but naming the worktree that
+.I spec-first
+happens to be checked out in.
+.TP
+.B gp switch -c new-feature
+Passed straight through to
+.BR "git switch -c new-feature" .
+.SH SEE ALSO
+.BR git-switch (1),
+.BR gp-sync (1),
+.BR gp-pr (1),
+.BR git-worktree (1)

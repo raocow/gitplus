@@ -1,4 +1,0 @@
-#autoload
-#
-# `gp swap` is an alias for `gp switch` — same completion.
-_gp-switch "$@"

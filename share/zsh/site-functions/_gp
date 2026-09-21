@@ -14,7 +14,6 @@ case $state in
       'done:finish current branch'
       'sync:rebase branches onto base'
       'switch:git switch, plus worktree/PR resolution'
-      'swap:alias for switch'
       'new:create a branch'
       'release:tag and release'
       'account:per-directory identities'

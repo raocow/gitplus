@@ -30,7 +30,22 @@ case "$("$BASH32" --version | head -1)" in
   *) echo "note: $BASH32 is not 3.x — running anyway, but this is a weaker check" ;;
 esac
 
-TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+# No `set -e` in this script (see check() below — it deliberately keeps going
+# when a checked command fails). That makes the setup below the one place a
+# silent failure is dangerous: if creating/entering the throwaway repo fails
+# quietly, every git command after it — including `git checkout -b work` and
+# the `check` calls themselves — would run for real against whatever repo the
+# caller's shell happened to be in instead. (This actually happened: `mktemp
+# -d` failing under a sandboxed shell left TMP empty, so $TMP/repo silently
+# became plain /repo, `cd` failed, and the rest of setup ran unnoticed against
+# a real checkout — a stray branch, a stray commit.) Each step below is
+# checked explicitly and aborts loudly instead.
+TMP="$(mktemp -d)"
+[ -n "$TMP" ] && [ -d "$TMP" ] || {
+  echo "bash32.sh: mktemp -d failed — aborting rather than risk running against the wrong repo" >&2
+  exit 1
+}
+trap 'rm -rf "$TMP"' EXIT
 FB="$TMP/bin"; mkdir -p "$FB"
 
 # Stub gh: enough shape for each command to get past resolution and into the
@@ -67,7 +82,17 @@ STUB
 chmod +x "$FB/gh"
 
 R="$TMP/repo"; git init -q -b main "$R" >/dev/null 2>&1
-cd "$R"
+cd "$R" || {
+  echo "bash32.sh: couldn't cd into the throwaway repo $R — aborting" >&2
+  exit 1
+}
+# Belt-and-suspenders: confirm we actually landed inside it before running
+# anything that mutates repo state, regardless of why a prior step might
+# have silently failed to get us here.
+[ "$(pwd -P)" = "$(cd "$R" 2>/dev/null && pwd -P)" ] || {
+  echo "bash32.sh: not actually inside the throwaway repo after cd — aborting" >&2
+  exit 1
+}
 git commit -q --allow-empty -m init
 git remote add origin "$R"
 git checkout -q -b work
@@ -106,7 +131,7 @@ check sweep -rn
 check sweep -f -n
 check done -n
 check haspr
-check swap main
+check switch main
 check new tmpbranch
 check wsweep -n
 check account list
