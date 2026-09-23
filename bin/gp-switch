@@ -13,7 +13,10 @@
 # doesn't touch its working tree, just stops it holding the branch name) so
 # the checkout here can proceed. One-way: your current branch is NOT
 # relocated to that other worktree, which is left on a detached HEAD at the
-# same commit it already had.
+# same commit it already had. If that worktree had uncommitted changes,
+# they're stashed there and popped back once the branch is confirmed checked
+# out HERE — the whole point of switching to a branch to work on it is
+# defeated if its WIP stays behind on a different worktree.
 #
 # Anything that changes what the positional argument(s) mean — creating a
 # branch (-c/-C), detaching (--detach/-d), starting an orphan branch
@@ -63,7 +66,10 @@ since a branch can only be checked out in one worktree at a time — this
 detaches that OTHER worktree's HEAD first (safe: doesn't touch its working
 tree, just frees the branch name) and checks the branch out here. One-way:
 your current branch is not relocated there; that worktree is left detached
-at the commit it already had.
+at the commit it already had. Uncommitted changes it had come with you: they
+are stashed there and restored here right after the checkout succeeds — if
+that pop conflicts, git leaves the stash entry in place and says so, nothing
+is lost.
 
 Anything that changes what the argument(s) mean — -c/-C (create), --detach,
 --orphan, a `--` marker, git's own `-` (previous branch), or a start-point
@@ -151,6 +157,17 @@ if [ "$branch" = "$current" ]; then
 fi
 
 free_branch_from_other_worktree "$branch" || exit 1
+# If that stashed the other worktree's uncommitted changes, guarantee they're
+# never silently stranded: apply_freed_worktree_stash() clears the marker
+# once it's dealt with them (success or a reported conflict either way), so
+# this only fires for a genuinely unhandled exit — including one this script
+# didn't anticipate, since an EXIT trap runs no matter how the process ends.
+_warn_if_stash_stranded() {
+  if [ -n "${_freed_worktree_stash:-}" ]; then
+    warn "the other worktree's uncommitted changes are still stashed, unapplied — see: git stash list"
+  fi
+}
+trap _warn_if_stash_stranded EXIT
 
 # Splice the resolved branch back into the ORIGINAL argv in the target's
 # original position, leaving every other flag exactly where and as given.
@@ -166,7 +183,15 @@ case " ${args[*]} " in
 esac
 
 if git switch "${args[@]}" 2>/dev/null; then
+  # The switch itself succeeded regardless of what happens next — say so
+  # either way. A failed stash application (conflict) is real, but it must
+  # not read as "the switch failed": under `set -e` a bare failing call here
+  # would abort before this step line ever printed, leaving you thinking the
+  # checkout itself didn't happen when it did.
+  stash_ok=1
+  apply_freed_worktree_stash || stash_ok=0
   step "switched to $branch"
+  [ "$stash_ok" = 1 ] || exit 1
   exit 0
 fi
 
@@ -176,7 +201,10 @@ fi
 # already own this invocation's shape, and stacking arbitrary passthrough
 # flags on top of them risks a combination git switch itself would reject.
 if git switch --quiet -c "$branch" --track "origin/$branch" >/dev/null 2>&1; then
+  stash_ok=1
+  apply_freed_worktree_stash || stash_ok=0
   step "switched to $branch ${_dim}(new, tracking origin/$branch)${_off}"
+  [ "$stash_ok" = 1 ] || exit 1
   exit 0
 fi
 

@@ -55,14 +55,20 @@ worktree,
 .B gp switch
 instead frees it: it detaches that
 .I other
-worktree's HEAD at its current commit (safe \(em doesn't touch that
-worktree's working tree or any uncommitted changes there at all, it just
-stops it holding the branch name), then checks the branch out in the
+worktree's HEAD at its current commit (safe \(em doesn't discard anything,
+it just stops it holding the branch name), then checks the branch out in the
 .B current
 worktree. This is one\-way: your current branch is
 .B not
 relocated to that other worktree, which is left on a detached HEAD at the
 commit it already had.
+.PP
+Uncommitted changes (tracked or untracked) in that other worktree come with
+you: they are stashed there and popped back here right after the checkout
+succeeds, so switching to a branch to work on it does not leave the work in
+progress behind on a different worktree. A pop that conflicts is left for
+you to resolve by hand \(em git keeps the stash entry rather than dropping
+it, so nothing is lost either way.
 .PP
 .B "gp pr <id>"
 uses the same free-it-first logic internally, so checking out a PR whose
