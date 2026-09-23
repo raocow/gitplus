@@ -29,6 +29,7 @@ Commands:
 
 Shorthands:
   pl          = gp pr list
+  pm          = gp pr merge
 
   gp help     show this help
   gp version  print the installed version
@@ -45,6 +46,7 @@ shift 2>/dev/null || true
 # rest of the arguments pass through untouched (`gp pl -a`, `gp pl 12 13`).
 case "$cmd" in
   pl) cmd=pr; set -- list ${1+"$@"} ;;
+  pm) cmd=pr; set -- merge ${1+"$@"} ;;
 esac
 
 case "$cmd" in

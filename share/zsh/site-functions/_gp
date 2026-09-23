@@ -20,6 +20,7 @@ case $state in
       'haspr:check for open PR'
       'wsweep:delete stale worktrees'
       'pl:shorthand for pr list'
+      'pm:shorthand for pr merge'
       'help:show help'
       'version:print version'
     )
