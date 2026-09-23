@@ -13,7 +13,7 @@ case $state in
       'sweep:delete merged branches'
       'done:finish current branch'
       'sync:rebase branches onto base'
-      'swap:switch worktree or branch'
+      'switch:git switch, plus worktree/PR resolution'
       'new:create a branch'
       'release:tag and release'
       'account:per-directory identities'
