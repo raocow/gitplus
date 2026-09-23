@@ -1,6 +1,6 @@
 .TH GP-WSWEEP 1 "2026-07-09" "gitplus" "gitplus Manual"
 .SH NAME
-gp-wsweep \- remove worktrees (and their branches) merged into the base
+gp-wsweep \- remove worktrees (and their branches) merged into the base, or detached
 .SH SYNOPSIS
 .B gp wsweep
 [\fB\-f\fR|\fB\-\-force\fR]
@@ -24,12 +24,32 @@ tip
 .RI ( origin/<base> ),
 so it works without pulling the base locally and from any worktree.
 .PP
-Safe by default: a worktree (and its branch) is removed only when its HEAD is
-already an ancestor of the base's remote tip (verified with
+Safe by default: a
+.I branch-backed
+worktree (and its branch) is removed only when its HEAD is already an
+ancestor of the base's remote tip (verified with
 .BR "git merge-base \-\-is-ancestor" ),
-so no unmerged work is lost. Reachability is judged by the worktree's HEAD
-commit, so both branch-backed and detached worktrees are handled. The branch
-delete uses
+so no unmerged work is lost. Squash- and rebase-merged branches are caught
+too, directly or through a stack: when the ancestor test says no, every
+merged PR's head/base pair is fetched once and closed over locally to see
+whether the branch's PR reaches the base through a chain of merges (needs
+.BR gh ;
+offline it falls back to the ancestor test alone).
+.PP
+A
+.I detached-HEAD
+worktree skips both of those checks and is removed unconditionally in safe
+mode too \(em it holds no branch, so there is no unmerged-branch risk to
+protect against, just an abandoned checkout location (commonly left behind by
+.BR gp-switch (1)
+freeing a branch from it). Still protected against surprise data loss:
+.B "git worktree remove"
+(without
+.BR \-\-force )
+refuses on its own if the worktree is dirty, so uncommitted changes there are
+never silently dropped \(em only a clean, abandoned detached checkout goes.
+.PP
+The branch delete uses
 .B \-D
 rather than
 .B \-d
@@ -39,9 +59,9 @@ on purpose, same reasoning as
 rechecks mergedness against your
 .I current
 branch, which wrongly refuses a branch merged upstream when your local base is
-stale; the merge-base check above is done instead, and trusted. The main
-worktree (always listed first) and the worktree you are currently in are never
-touched or deleted.
+stale; the checks above are done instead, and trusted. The main worktree
+(always listed first) and the worktree you are currently in are never touched
+or deleted.
 .SH OPTIONS
 .TP
 .BR \-f ", " \-\-force

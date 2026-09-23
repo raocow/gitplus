@@ -9,12 +9,19 @@
 #
 # Like gp-sweep, it fetches first and judges "merged" against the base's REMOTE
 # tip (origin/<base>), so it works without pulling the base and from any
-# worktree. Safe by default: a worktree (and its branch) is removed only when
-# its HEAD is already an ancestor of the base's remote tip (verified with `git
-# merge-base --is-ancestor`), so no unmerged work is lost. The branch delete
-# uses `-D` rather than `-d` on purpose — same reasoning as gp-sweep: `-d`
-# rechecks mergedness against your *current* branch, which wrongly refuses a
-# branch merged upstream when local base is stale; we've already verified it
+# worktree. Safe by default: a BRANCH-backed worktree (and its branch) is
+# removed only when its HEAD is already an ancestor of the base's remote tip
+# (verified with `git merge-base --is-ancestor`), so no unmerged work is lost.
+# A DETACHED-HEAD worktree skips that check and is always removed in safe mode
+# too — it holds no branch, so there's no unmerged-branch risk to protect
+# against, just an abandoned checkout location (commonly left behind by
+# `gp switch` freeing a branch from it). Still protected against surprise data
+# loss: `git worktree remove` (without --force) refuses on its own if the
+# worktree is dirty, so uncommitted changes there are never silently dropped —
+# only a clean, abandoned detached checkout goes. The branch delete uses `-D`
+# rather than `-d` on purpose — same reasoning as gp-sweep: `-d` rechecks
+# mergedness against your *current* branch, which wrongly refuses a branch
+# merged upstream when local base is stale; we've already verified it
 # ourselves against the remote tip. The main worktree and the worktree you're
 # currently in are never touched (or deleted).
 #
@@ -54,11 +61,13 @@ directories) AND deletes the underlying branch, same as running `gp sweep`
 right after — you're almost always done with both at once. A detached-HEAD
 worktree has no branch, so only the worktree goes.
 
-Safe by default: a worktree (and its branch) is removed only when its HEAD is
-already an ancestor of the base's remote tip (verified with merge-base),
-judged against origin/<base> after a fetch — so it works without pulling the
-base and never drops unmerged work. The main worktree and the one you're
-currently in are never touched (or deleted).
+Safe by default: a branch-backed worktree (and its branch) is removed only
+when its HEAD is already an ancestor of the base's remote tip (verified with
+merge-base), judged against origin/<base> after a fetch — so it works without
+pulling the base and never drops unmerged work. A detached-HEAD worktree
+skips that check and is always removed too (still refused by git itself if
+it's dirty, so uncommitted changes are never silently lost). The main
+worktree and the one you're currently in are never touched (or deleted).
 
 --force removes EVERY other worktree regardless of merge status, with
 `git worktree remove --force` — so it also drops worktrees with uncommitted
@@ -149,9 +158,18 @@ consider() {
   if [ -n "$branch" ]; then label="$path [$branch]"; else label="$path [detached]"; fi
   if [ "$force" = 1 ]; then
     targets+=("$path"); labels+=("$label"); tbranches+=("$branch")
+  elif [ -z "$branch" ]; then
+    # Detached worktrees hold no branch, so there's no "unmerged branch"
+    # for the check below to be protecting — just an abandoned checkout
+    # location, commonly left behind by `gp switch` freeing a branch from
+    # here. Removed unconditionally in safe mode too, not just -f: still
+    # subject to git's own refusal to remove a DIRTY worktree without
+    # --force (below), so uncommitted changes sitting there are never
+    # silently discarded — only an abandoned, clean detached checkout is.
+    targets+=("$path"); labels+=("$label"); tbranches+=("$branch")
   elif [ -n "$head" ] && git merge-base --is-ancestor "$head" "$mergeref" 2>/dev/null; then
     targets+=("$path"); labels+=("$label"); tbranches+=("$branch")
-  elif [ -n "$branch" ] && is_squash_merged "$branch"; then
+  elif is_squash_merged "$branch"; then
     targets+=("$path"); labels+=("$label"); tbranches+=("$branch")
   else
     skipped="${skipped}  ${label} (not merged into ${mergeref_display})"$'\n'
@@ -182,7 +200,7 @@ if [ "$dry" = 1 ]; then
   if [ "$force" = 1 ]; then
     echo "Would remove (every worktree except main + current; branches kept):"
   else
-    echo "Would remove (HEAD merged into '$mergeref_display') and delete the branch:"
+    echo "Would remove (merged into '$mergeref_display', or detached) and delete the branch where there is one:"
   fi
   for l in ${labels[@]+"${labels[@]}"}; do echo "  $l"; done
   [ -n "$skipped" ] && { echo "Skipped (unmerged):"; printf '%s' "$skipped"; }
