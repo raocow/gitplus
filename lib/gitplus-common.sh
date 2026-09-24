@@ -252,21 +252,66 @@ branch_in_worktree_named() {
 # worktree OTHER than the current one, detach that worktree's HEAD at its
 # current commit so the branch is free to check out here instead. Detaching
 # is safe: `git checkout --detach HEAD` doesn't touch the working tree or
-# index at all, so any uncommitted work in that other worktree rides along
-# unchanged — it's just no longer attached to the branch name. Warns (but
-# still proceeds) if that worktree is dirty, purely so the fact that
-# uncommitted work is now sitting on a detached HEAD isn't a silent surprise.
+# index at all — but leaving uncommitted work sitting there also means it
+# never comes with you, which is its own problem when the whole point of
+# switching is to work on that branch. If that worktree is dirty (tracked or
+# untracked changes), they're stashed there instead of just left in place.
+#
+# Sets $_freed_worktree_stash to a marker identifying that stash if one was
+# created (empty otherwise). The stash's base tree is <branch>'s, not
+# whatever the caller happens to be on right now, so it must not be popped
+# until the caller has actually checked <branch> out HERE — that's
+# apply_freed_worktree_stash()'s job, called once that succeeds. A caller
+# that stores this stash away is responsible for eventually resolving it one
+# way or the other; see gp-switch and gp-pr for the exit-trap pattern that
+# guarantees a failed checkout afterward still surfaces it instead of
+# stranding it silently.
+#
 # No-op (prints nothing, returns 0) if the branch isn't checked out anywhere
 # else. Returns 1 with a message on stderr if the detach itself fails.
 free_branch_from_other_worktree() {
   local branch="$1" wt
+  _freed_worktree_stash=""
   wt="$(worktree_path_for_branch "$branch")" || return 0
   if [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]; then
-    warn "'$branch' has uncommitted changes in $wt — detaching it there anyway (nothing is lost, just no longer on that branch name)"
+    local marker="gp: freeing $branch from $wt"
+    if git -C "$wt" stash push --include-untracked --quiet -m "$marker" 2>/dev/null; then
+      _freed_worktree_stash="$marker"
+    else
+      warn "'$branch' has uncommitted changes in $wt that couldn't be stashed — detaching it there anyway (nothing is lost, just no longer on that branch name)"
+    fi
   fi
   if ! git -C "$wt" checkout --quiet --detach HEAD >/dev/null 2>&1; then
     echo "couldn't free '$branch' from $wt — resolve by hand" >&2
     return 1
   fi
   step "freed '$branch' from $wt (now detached there)"
+}
+
+# apply_freed_worktree_stash — call once the branch free_branch_from_other_worktree
+# just freed is actually checked out HERE. Pops the SPECIFIC stash entry it
+# created, matched by the marker message rather than "the top of the stash
+# stack" — stash entries are a single list shared across every worktree of a
+# repo, so something else stashed in the meantime must never be popped by
+# mistake. No-op if free_branch_from_other_worktree didn't stash anything.
+#
+# A pop that conflicts is reported, not silently swallowed: git itself leaves
+# the stash entry in place and the conflict markers in the working tree when
+# that happens, so nothing is lost there either — just needs resolving by
+# hand.
+apply_freed_worktree_stash() {
+  [ -n "${_freed_worktree_stash:-}" ] || return 0
+  local marker="$_freed_worktree_stash" ref
+  _freed_worktree_stash=""
+  ref="$(git stash list --format='%gd %gs' 2>/dev/null | grep -F "$marker" | head -1 | cut -d' ' -f1)"
+  if [ -z "$ref" ]; then
+    warn "expected the stashed changes from the other worktree but couldn't find them — check 'git stash list'"
+    return 1
+  fi
+  if git stash pop --quiet "$ref" 2>/dev/null; then
+    step "restored the uncommitted changes that were on the other worktree"
+  else
+    echo "the uncommitted changes from the other worktree didn't apply cleanly — resolve the conflict markers, then 'git stash drop' once you're done with that entry" >&2
+    return 1
+  fi
 }

@@ -1168,24 +1168,46 @@ if [ -n "$info" ]; then
   # somewhere else. Freeing it (detaching that worktree's HEAD — safe, its
   # working tree is untouched) means checkout just works normally below.
   free_branch_from_other_worktree "$branch" || exit 1
+  # If that stashed the other worktree's uncommitted changes, guarantee
+  # they're never silently stranded by an unexpected failure below (e.g. the
+  # bare `git switch` a few lines down, unguarded under `set -e`):
+  # apply_freed_worktree_stash() clears the marker once it's dealt with them,
+  # so this only fires for a genuinely unhandled exit.
+  _warn_if_stash_stranded() {
+    if [ -n "${_freed_worktree_stash:-}" ]; then
+      warn "the other worktree's uncommitted changes are still stashed, unapplied — see: git stash list"
+    fi
+  }
+  trap _warn_if_stash_stranded EXIT
   # gh pr checkout creates the branch or fast-forwards an existing one, leaving
   # us on it.
   if gh pr checkout "$id" >/dev/null 2>&1; then
+    # The checkout itself succeeded regardless of what happens next — say so
+    # either way. A failed stash application (conflict) is real, but it must
+    # not read as "the checkout failed": under `set -e` a bare failing call
+    # here would abort before the step line ever printed, leaving you
+    # thinking the checkout itself didn't happen when it did.
+    stash_ok=1
+    apply_freed_worktree_stash || stash_ok=0
     git config "branch.$branch.gitplus-pr" "$num" 2>/dev/null || true
     step "switched to $branch ${_dim}(PR #$num, up to date)${_off}"
+    [ "$stash_ok" = 1 ] || exit 1
     exit 0
   fi
   # Resolved the PR but checkout failed — usually a merged/closed PR whose head
   # branch was deleted from origin. Use the ref GitHub keeps around.
   warn "head branch gone from origin — using refs/pull/$num/head"
+  stash_ok=1
   if git fetch --quiet origin "refs/pull/$num/head:$branch" 2>/dev/null; then
     git switch --quiet "$branch"
+    apply_freed_worktree_stash || stash_ok=0
     git config "branch.$branch.gitplus-pr" "$num" 2>/dev/null || true
     step "switched to $branch ${_dim}(PR #$num)${_off}"
   else
     echo "gp pr: couldn't check out PR #$num — '$branch' may have diverged; resolve by hand" >&2
     exit 1
   fi
+  [ "$stash_ok" = 1 ] || exit 1
   exit 0
 fi
 

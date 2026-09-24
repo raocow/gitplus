@@ -62,8 +62,10 @@ it falls back to
 .IR refs/pull/<NUMBER>/head ,
 which GitHub keeps around. If the branch is already checked out in another
 worktree (a branch can only be checked out in one worktree at a time), that
-worktree's HEAD is detached first \(em safe, its working tree is untouched
-\(em freeing the branch to check out here instead of refusing (see
+worktree's HEAD is detached first \(em safe, nothing is discarded \(em
+freeing the branch to check out here instead of refusing. Any uncommitted
+changes it had come along too: stashed there, popped back here once the
+checkout succeeds (see
 .BR gp-switch (1)).
 .PP
 Branches are stamped with their PR number
