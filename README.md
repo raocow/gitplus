@@ -1,3 +1,13 @@
+> **Moved:** gitplus has been merged into [gowork](https://github.com/raocow/gowork)
+> (command `gw`), together with rigor. This repository is archived.
+>
+> ```bash
+> brew install raocow/tap/gowork
+> gw migrate        # points an existing gitplus setup at gowork
+> ```
+>
+> The `gp` commands keep working there under their old names.
+
 # gitplus
 
 Personal custom `git` subcommands. Git treats any executable named `git-<name>`
